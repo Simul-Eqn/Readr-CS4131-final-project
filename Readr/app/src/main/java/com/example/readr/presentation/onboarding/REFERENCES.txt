@@ -1,0 +1,2 @@
+Code used with inspiration from:
+https://github.com/mohammednawas8/NewsApp
