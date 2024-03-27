@@ -64,7 +64,9 @@ fun ReadrTheme(
     CompositionLocalProvider(
         LocalTextSizes provides TextSizes(),
         LocalTextStyles provides TextStyles(),
+        LocalReplacedTextStyles provides ReplacedTextStyles(),
         LocalSpacings provides Spacings(),
+        LocalMoreColors provides MoreColors(),
     ) {
         MaterialTheme(
             colorScheme = colorScheme,

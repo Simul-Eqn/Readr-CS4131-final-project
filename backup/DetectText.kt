@@ -1,4 +1,4 @@
-package com.example.readr
+package com.example.readr.backup
 
 import com.google.cloud.vision.v1.AnnotateImageRequest
 import com.google.cloud.vision.v1.EntityAnnotation

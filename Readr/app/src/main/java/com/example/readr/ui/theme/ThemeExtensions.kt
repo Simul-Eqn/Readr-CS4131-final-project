@@ -2,6 +2,7 @@ package com.example.readr.ui.theme
 
 
 import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
@@ -33,6 +34,17 @@ data class TextStyles(
 val LocalTextStyles = compositionLocalOf { TextStyles() }
 
 
+data class ReplacedTextStyles(
+    val xs: TextStyle = TextStyle(fontSize=TextSizes().xs),
+    val s: TextStyle = TextStyle(fontSize=TextSizes().s),
+    val m: TextStyle = TextStyle(fontSize=TextSizes().m),
+    val l: TextStyle = TextStyle(fontSize=TextSizes().xl),
+    val xl: TextStyle = TextStyle(fontSize=TextSizes().xl),
+)
+
+val LocalReplacedTextStyles = compositionLocalOf { ReplacedTextStyles() }
+
+
 data class Spacings(
     val xs: Dp = 3.dp,
     val s: Dp = 5.dp,
@@ -43,5 +55,12 @@ data class Spacings(
 
 val LocalSpacings = compositionLocalOf { Spacings() }
 
+
+data class MoreColors(
+    val greyed_text: Color = Color.Gray,
+    val highlight_text: Color = Color.hsv(255.0F, 0.10F, 0.50F, 0.3F),
+)
+
+val LocalMoreColors = compositionLocalOf { MoreColors() }
 
 

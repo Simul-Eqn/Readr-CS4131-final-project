@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Readr</string>
+    <string name="detector_accessibility_menu">Detector Accessibility Menu</string>
 </resources>
