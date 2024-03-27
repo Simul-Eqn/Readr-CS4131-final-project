@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -29,6 +30,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
@@ -40,11 +42,13 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.example.readr.Variables
+import com.example.readr.data.ImageLoader
+import com.example.readr.presentation.ChangeReplacedTextSizeSlider
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.TextRecognizer
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
-
+import kotlin.properties.Delegates
 
 
 class AccessibilityMenu : AccessibilityService() {
@@ -64,6 +68,9 @@ class AccessibilityMenu : AccessibilityService() {
             Log.d("PERMISSION", "CANNOT DRAW OVERLAY WOSDFHOWEND")
             // TODO CONT ASKING FOR IT
         }
+
+
+        val imgl = ImageLoader()
 
 
         //System.out.println("ACCESSED YAY")
@@ -86,7 +93,11 @@ class AccessibilityMenu : AccessibilityService() {
 
                     val img = InputImage.fromBitmap(bitmap, 0)
 
-                    // TODO: CAN SAVE THIS IMAGE AS INITIAL IMAGE
+                    // SAVE THIS IMAGE AS INITIAL IMAGE
+                    imgl.withNextImgNum {
+                        imgl.saveImage(bitmap, "image_${it}_init.png", this@AccessibilityMenu)
+                    }
+
 
                     textRecognizer.process(img)
                         .addOnSuccessListener {
@@ -131,10 +142,11 @@ class AccessibilityMenu : AccessibilityService() {
                                 setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
                                 setContent {
 
-                                    val fontSize by remember(Variables.overlayTextSize) { mutableIntStateOf(Variables.overlayTextSize) }
+                                    var fontSize by remember(Variables.overlayTextSize) { mutableIntStateOf(Variables.overlayTextSize) }
 
                                     // get all the items and save
                                     Box(modifier = Modifier.fillMaxSize()) {
+
                                         for (textBlock in it.textBlocks) {
                                             /*val height =
                                                 pxToDP((textBlock.boundingBox!!.bottom - textBlock.boundingBox!!.top)).dp
@@ -185,6 +197,9 @@ class AccessibilityMenu : AccessibilityService() {
                                             }
                                         }
 
+
+                                        ChangeReplacedTextSizeSlider({ fontSize = it })
+
                                     }
 
 
@@ -195,7 +210,7 @@ class AccessibilityMenu : AccessibilityService() {
                                     ) {
                                         //Text("X", fontSize=100.sp, color= Color.Red)
                                         Icon(Icons.Filled.Close, "Close button", tint=Color.Red,
-                                            modifier = Modifier.height(100.dp))
+                                            modifier = Modifier.size(100.dp))
                                     }
 
 
@@ -218,9 +233,57 @@ class AccessibilityMenu : AccessibilityService() {
                                 PixelFormat.TRANSLUCENT,
                             ))
 
-                            // TODO: CAN SAVE THIS IMAGE TO SHOW IN HISTORY
 
                             Log.d("DISPLAY OVERLAY", "ADDED VIEW")
+
+
+                            Thread {
+
+                                Thread.sleep(3000) // wait for a while to load yes
+
+                                // SCREENSHOT AGAIN TO TRY TO SAVE
+                                takeScreenshot(
+                                    Display.DEFAULT_DISPLAY, mainExecutor,
+                                    object : AccessibilityService.TakeScreenshotCallback {
+                                        override fun onSuccess(screenshot: ScreenshotResult) {
+                                            //System.out.println("SUCCESSFULLY SCREENSHOTTED")
+                                            //Toast.makeText(applicationContext, "SUCCESSFULLY TOOK SCREENSHOT!", Toast.LENGTH_SHORT).show()
+
+                                            // get bitmap of screen
+                                            val finalBitmap = Bitmap.wrapHardwareBuffer(
+                                                screenshot.hardwareBuffer,
+                                                screenshot.colorSpace
+                                            )!!.copy(Bitmap.Config.RGBA_F16, true)
+
+                                            // SAVE AS FINAL
+                                            imgl.withNextImgNum {
+                                                imgl.saveImage(
+                                                    finalBitmap,
+                                                    "image_${it}_final.png",
+                                                    this@AccessibilityMenu
+                                                )
+                                            }
+
+                                        }
+
+                                        override fun onFailure(errorCode: Int) {
+                                            Log.println(
+                                                Log.ASSERT,
+                                                "FINAL SCREENSHOT ERROR",
+                                                "ERROR CODE: $errorCode"
+                                            )
+                                            Toast.makeText(
+                                                applicationContext,
+                                                "FAILED TO TAKE FINAL SCREENSHOT. ERROR CODE: $errorCode",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                        }
+                                    }
+                                )
+
+
+                            }.start()
+
 
 
                             //disableSelf()

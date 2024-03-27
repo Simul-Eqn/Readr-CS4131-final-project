@@ -11,6 +11,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.readr.openDyslexic
 
 data class TextSizes(
     val xs: TextUnit = 10.sp,
@@ -35,11 +36,11 @@ val LocalTextStyles = compositionLocalOf { TextStyles() }
 
 
 data class ReplacedTextStyles(
-    val xs: TextStyle = TextStyle(fontSize=TextSizes().xs),
-    val s: TextStyle = TextStyle(fontSize=TextSizes().s),
-    val m: TextStyle = TextStyle(fontSize=TextSizes().m),
-    val l: TextStyle = TextStyle(fontSize=TextSizes().xl),
-    val xl: TextStyle = TextStyle(fontSize=TextSizes().xl),
+    val xs: TextStyle = TextStyle(fontSize=TextSizes().xs, fontFamily=openDyslexic),
+    val s: TextStyle = TextStyle(fontSize=TextSizes().s, fontFamily=openDyslexic),
+    val m: TextStyle = TextStyle(fontSize=TextSizes().m, fontFamily=openDyslexic),
+    val l: TextStyle = TextStyle(fontSize=TextSizes().xl, fontFamily=openDyslexic),
+    val xl: TextStyle = TextStyle(fontSize=TextSizes().xl, fontFamily=openDyslexic),
 )
 
 val LocalReplacedTextStyles = compositionLocalOf { ReplacedTextStyles() }

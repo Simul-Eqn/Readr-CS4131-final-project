@@ -17,36 +17,41 @@ import android.view.accessibility.AccessibilityManager
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.magnifier
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Book
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.ThumbUp
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
+import androidx.compose.material3.Divider
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -62,6 +67,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import com.example.readr.data.ImageLoader
 //import com.example.readr.AccessibilityMenuService.LocalBinder
 import com.example.readr.data.PersistentStorage
 import com.example.readr.presentation.ChangeReplacedTextSizeSlider
@@ -69,7 +75,7 @@ import com.example.readr.presentation.onboarding.OnBoardingScreen
 import com.example.readr.presentation.onscaffold.BottomBar
 import com.example.readr.presentation.onscaffold.COLLAPSED_TOP_BAR_HEIGHT
 import com.example.readr.presentation.onscaffold.DDItem
-import com.example.readr.presentation.onscaffold.ExpandedTopBar
+import com.example.readr.presentation.onscaffold.DisplayTopBar
 import com.example.readr.presentation.onscaffold.WrapInColllapsedTopBar
 import com.example.readr.presentation.themeswitcher.ThemeSwitcher
 import com.example.readr.ui.theme.LocalMoreColors
@@ -97,6 +103,9 @@ class MainActivity : ComponentActivity() {
 
     // STT
     private lateinit var speechRecognizer: SpeechRecognizer
+
+    // IMLG
+    private val imgl = ImageLoader()
 
     // ACCESSIBILITY MENU
     /*var mBounded = false
@@ -171,12 +180,13 @@ class MainActivity : ComponentActivity() {
             override fun onBeginningOfSpeech() { onBeginSpeech() }
             override fun onRmsChanged(v: Float) {}
             override fun onBufferReceived(bytes: ByteArray) {}
-            override fun onEndOfSpeech() {}
+            override fun onEndOfSpeech() {
+                speechRecognizer.startListening(sttIntent) // start again if stop
+            }
             override fun onError(i: Int) {}
             override fun onResults(bundle: Bundle) {
                 val data = bundle.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                 onResults(data)
-                speechRecognizer.startListening(sttIntent)
             }
             override fun onPartialResults(bundle: Bundle) {
                 val data = bundle.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
@@ -229,8 +239,13 @@ class MainActivity : ComponentActivity() {
 
             ReadrTheme(darkTheme = darkTheme) {
 
+                var recomposeBool by remember { mutableStateOf(true) }
+
                 when (finishedOnboarding) {
-                    true -> ShowView(viewNo)
+                    true -> ShowView(viewNo, {
+                        outerNavPageNo = it
+                        viewNo = it
+                                             }, recomposeBool, { recomposeBool = !recomposeBool })
 
                     false -> OnBoardingScreen {
                         finishedOnboarding = true
@@ -246,8 +261,10 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    var histItemNum = -1
+
     @Composable
-    fun ShowView(viewNo:Int) {
+    fun ShowView(viewNo:Int, setViewNo:(Int)->Unit, recomposeBool: Boolean, recomposeOuter:()->Unit) {
 
         var idx by remember { mutableIntStateOf(innerNavTabNo) }
         fun setIdx(newIdx:Int) {
@@ -262,8 +279,9 @@ class MainActivity : ComponentActivity() {
                 modifier = Modifier.fillMaxSize(),
                 bottomBar = { BottomBar( idx, { setIdx(it) } , tab_titles , tab_images ) },
                 floatingActionButton = {
-                    if (idx==1) FloatingActionButton( onClick = { outerNavPageNo = 1 }, containerColor=MaterialTheme.colorScheme.secondary )
-                    { Image(painterResource(R.drawable.camera_icon), "Camera button") } },
+                    if (idx==1) FloatingActionButton( onClick = { setViewNo(1) }, containerColor=MaterialTheme.colorScheme.secondary )
+                    { Image(painterResource(R.drawable.camera_icon), "Camera button",
+                        modifier = Modifier.size(100.dp)) } },
             ) {
                 val listState = rememberLazyListState()
                 WrapInColllapsedTopBar(it, listState, dropdownItems, topBarTitle, true) {
@@ -273,28 +291,72 @@ class MainActivity : ComponentActivity() {
                     var readTxt by remember { mutableStateOf(readText) }
                     var currTxt by remember { mutableStateOf("") }
 
-                    LazyColumn(
-                        state = listState,
-                        modifier = Modifier.padding(top = COLLAPSED_TOP_BAR_HEIGHT),
+                    Column(
+                        modifier = Modifier.padding(top = COLLAPSED_TOP_BAR_HEIGHT + 16.dp,
+                            bottom = 16.dp,
+                            start = 16.dp,
+                            end = 16.dp,
+                            )
                     ) {
-                        /* if (outerNavPageNo == 0 && innerNavTabNo == 1) {
-                            item() {
-                                ExpandedTopBar(topBarImg, topBarTitle)
-                            }
-                        } */ // no more expanded top bar
+
+                        LazyColumn(
+                            state = listState,
+                        ) {
+                            /* if (outerNavPageNo == 0 && innerNavTabNo == 1) {
+                                item() {
+                                    ExpandedTopBar(topBarImg, topBarTitle)
+                                }
+                            } */ // no more expanded top bar
 
 
-                        items(1) {
-                            when (idx) {
-                                0 -> ShowReadingView(toggle, { toggle = !toggle },
-                                    readTxt, currTxt,
-                                    { readTxt = it }, { currTxt = it })
-                                1 -> ShowDashboard(toggle, { toggle = !toggle })
-                                2 -> ShowSettings(toggle, { toggle = !toggle })
+                            items(1) {
+                                when (idx) {
+                                    0 -> ShowReadingView(toggle, { toggle = !toggle },
+                                        readTxt, currTxt,
+                                        { readTxt = it }, { currTxt = it })
+                                    1 -> ShowDashboard(toggle, { toggle = !toggle })
+                                    2 -> ShowSettings(toggle, { toggle = !toggle })
+                                }
                             }
+
+
                         }
 
+                        if (idx == 1) {
+                            ShowHistory( toggle,
+                                { toggle = !toggle },
+                                { recomposeOuter() },
+                                { setViewNo(2) })
+                        }
                     }
+
+
+                }
+            }
+
+            1 -> Scaffold(
+                modifier = Modifier.fillMaxSize(),
+                topBar = { DisplayTopBar("Camera", { setViewNo(0) }) }
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(it),
+                ) {
+                    ShowCameraView()
+                }
+            }
+
+            2 -> Scaffold( // SHOW HISTORY ITEM
+                modifier = Modifier.fillMaxSize(),
+                topBar = { DisplayTopBar("History item $histItemNum", { setViewNo(0) }) }
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(it),
+                ) {
+                    HistoryItem(histItemNum).ShowDetails()
                 }
             }
         }
@@ -370,8 +432,7 @@ class MainActivity : ComponentActivity() {
 
         Row(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
+                .fillMaxSize(),
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.Top,
         ) {
@@ -520,8 +581,7 @@ class MainActivity : ComponentActivity() {
 
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
+                .fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
@@ -598,10 +658,116 @@ class MainActivity : ComponentActivity() {
             }
 
 
+
+
         }
 
 
     }
+
+    @Composable
+    fun ShowHistory(recomposeBool:Boolean, recompose:()->Unit, recomposeOuter: () -> Unit, showHistoryItemView: () -> Unit) {
+        Spacer(modifier = Modifier.height(16.dp))
+        Divider()
+        Spacer(modifier = Modifier.height(16.dp))
+
+        var showConfirmationDialog by remember { mutableStateOf(false) }
+
+        Row(
+            modifier = Modifier
+                .wrapContentHeight()
+                .fillMaxWidth()
+                .padding(horizontal=16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("Text Replacement History", style=LocalTextStyles.current.m)
+
+            Row(
+                modifier = Modifier.wrapContentSize(),
+                horizontalArrangement = Arrangement.spacedBy(5.dp),
+            ) {
+
+
+                Icon(
+                    Icons.Filled.Delete, "Delete/Clear Text replacement history",
+                    tint = Color.Red,
+                    modifier = Modifier.size(32.dp)
+                        .noRippleClickable {
+                            // confirmation dialog
+                            showConfirmationDialog = true
+                            recompose()
+                        },
+                )
+
+
+                Icon(painterResource(R.drawable.history_icon), "Text replacement history",
+                modifier = Modifier.size(32.dp), tint = Color.Blue)
+
+
+            }
+
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        var histItemCnt by remember { mutableStateOf(0) }
+
+        imgl.withNextImgNum { histItemCnt = it }
+
+        System.out.println("BOXING YES")
+
+        LazyVerticalGrid(
+            GridCells.Adaptive(minSize = HistoryItem.width),
+            verticalArrangement = Arrangement.SpaceEvenly,
+        ) {
+
+            items(histItemCnt) {
+                HistoryItem(histItemCnt-it-1).ShowView {
+                    histItemNum = histItemCnt-it-1
+                    showHistoryItemView()
+                } // so that highest num, latest, is shown first
+            }
+        }
+
+
+        // show confirmation dialog if yes
+        if (showConfirmationDialog) {
+            AlertDialog(
+                onDismissRequest = {
+                    showConfirmationDialog = false
+                    recompose()
+                },
+                title = {
+                    Text("Clear history: CONFIRMATION")
+                },
+                text = {
+                    Text("Are you sure you want to clear all history? ")
+                },
+                confirmButton = {
+                    Button({
+                        imgl.deleteAllImages()
+                        showConfirmationDialog = false
+                        recomposeOuter()
+                        recompose()
+                    }) {
+                        Text("Confirm")
+                    }
+                },
+                dismissButton = {
+                    Button({
+                        showConfirmationDialog = false
+                        recompose()
+                    }) {
+                        Icon(Icons.Filled.Close, "Dismiss confirmation dialog", tint=Color.Black)
+                    }
+                }
+            )
+        }
+    }
+
+
+
 
     @Composable
     fun ShowSettings(recomposeBool:Boolean, recompose:()->Unit) {
@@ -609,18 +775,19 @@ class MainActivity : ComponentActivity() {
 
         Column (
             modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp)
+                .fillMaxSize(),
         ) {
             ChangeReplacedTextSizeSlider()
         }
 
     }
 
+    @Composable
+    fun ShowCameraView() {
 
-    override fun onStop() {
-        super.onStop()
     }
+
+
 
     /*fun stopAccessibilityMenu() {
         val intent = Intent(this@MainActivity, AccessibilityMenuService::class.java)
