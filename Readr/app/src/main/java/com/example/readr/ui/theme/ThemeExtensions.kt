@@ -6,12 +6,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.font.Typeface
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.readr.openDyslexic
+import com.example.readr.R
+import com.example.readr.Variables
+
 
 data class TextSizes(
     val xs: TextUnit = 10.sp,
@@ -24,23 +27,30 @@ data class TextSizes(
 val LocalTextSizes = compositionLocalOf { TextSizes() }
 
 
+// same code, makes sure it gets loaded here
+val openDyslexic = FontFamily(
+    Font(R.font.opendyslexic3_normal, FontWeight.Normal),
+    Font(R.font.opendyslexic3_bold, FontWeight.Bold),
+)
+
 data class TextStyles(
-    val xs: TextStyle = TextStyle(fontSize=TextSizes().xs),
-    val s: TextStyle = TextStyle(fontSize=TextSizes().s),
-    val m: TextStyle = TextStyle(fontSize=TextSizes().m),
-    val l: TextStyle = TextStyle(fontSize=TextSizes().xl),
-    val xl: TextStyle = TextStyle(fontSize=TextSizes().xl),
+    val xs: TextStyle = TextStyle(fontSize=TextSizes().xs*Variables.textScale, fontFamily=Variables.textFontFamily),
+    val s: TextStyle = TextStyle(fontSize=TextSizes().s*Variables.textScale, fontFamily=Variables.textFontFamily),
+    val m: TextStyle = TextStyle(fontSize=TextSizes().m*Variables.textScale, fontFamily=Variables.textFontFamily),
+    val l: TextStyle = TextStyle(fontSize=TextSizes().l*Variables.textScale, fontFamily=Variables.textFontFamily),
+    val xl: TextStyle = TextStyle(fontSize=TextSizes().xl*Variables.textScale, fontFamily=Variables.textFontFamily),
 )
 
 val LocalTextStyles = compositionLocalOf { TextStyles() }
 
 
+
 data class ReplacedTextStyles(
-    val xs: TextStyle = TextStyle(fontSize=TextSizes().xs, fontFamily=openDyslexic),
-    val s: TextStyle = TextStyle(fontSize=TextSizes().s, fontFamily=openDyslexic),
-    val m: TextStyle = TextStyle(fontSize=TextSizes().m, fontFamily=openDyslexic),
-    val l: TextStyle = TextStyle(fontSize=TextSizes().xl, fontFamily=openDyslexic),
-    val xl: TextStyle = TextStyle(fontSize=TextSizes().xl, fontFamily=openDyslexic),
+    val xs: TextStyle = TextStyle(fontSize=TextSizes().xs*Variables.textScale, fontFamily=Variables.overlayFontFamily),
+    val s: TextStyle = TextStyle(fontSize=TextSizes().s*Variables.textScale, fontFamily=Variables.overlayFontFamily),
+    val m: TextStyle = TextStyle(fontSize=TextSizes().m*Variables.textScale, fontFamily=Variables.overlayFontFamily),
+    val l: TextStyle = TextStyle(fontSize=TextSizes().l*Variables.textScale, fontFamily=Variables.overlayFontFamily),
+    val xl: TextStyle = TextStyle(fontSize=TextSizes().xl*Variables.textScale, fontFamily=Variables.overlayFontFamily),
 )
 
 val LocalReplacedTextStyles = compositionLocalOf { ReplacedTextStyles() }

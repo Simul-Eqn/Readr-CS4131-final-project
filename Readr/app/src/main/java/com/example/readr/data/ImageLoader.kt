@@ -54,7 +54,7 @@ class ImageLoader {
 
             // load from db
             val ref = storageRef.child(name).getBytes(Long.MAX_VALUE).addOnSuccessListener {
-                Log.w("HSIHFEOKFESD", "SUCCESS: $it")
+                //Log.w("HSIHFEOKFESD", "SUCCESS: $it")
                 onSuccess(ByteArrayToBitmap(it).asImageBitmap())
             }
         }

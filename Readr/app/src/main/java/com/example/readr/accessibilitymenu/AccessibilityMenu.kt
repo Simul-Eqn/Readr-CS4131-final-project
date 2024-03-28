@@ -1,7 +1,13 @@
 package com.example.readr.accessibilitymenu
 
+import android.Manifest
 import android.accessibilityservice.AccessibilityService
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.PixelFormat
 import android.net.Uri
@@ -39,6 +45,7 @@ import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.app.ActivityCompat
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.example.readr.Variables
@@ -53,12 +60,47 @@ import kotlin.properties.Delegates
 
 class AccessibilityMenu : AccessibilityService() {
 
+
+    lateinit var notificationManager: NotificationManager
+    val channelID = "com.example.readr.notifications"
+    var nextNotifId = 0
+
+    fun createNotificationChannel(id:String, name:String, description:String) {
+        val importance = NotificationManager.IMPORTANCE_LOW
+        val channel = NotificationChannel(id, name, importance)
+        channel.description = description
+        channel.enableLights(true)
+        channel.lightColor = android.graphics.Color.GREEN
+        channel.enableVibration(true)
+        channel.vibrationPattern = longArrayOf(100, 200, 300, 400, 500, 400, 300, 200, 400)
+        notificationManager.createNotificationChannel(channel)
+    }
+
+    fun sendNotification(title:String, text:String, ) {
+        val notification = Notification.Builder(this, channelID)
+            .setContentTitle(title)
+            .setContentText(text)
+            //.setSmallIcon(R.drawable.appicon) TODO GET AN ICON
+            .build()
+
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            Toast.makeText(this, "Please enable notifications.", Toast.LENGTH_SHORT).show()
+        }
+
+        notificationManager.notify(nextNotifId++, notification)
+    }
+
+
     override fun onServiceConnected() {
+
+        // prep notifications
+        notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        createNotificationChannel(channelID, "AMenuNotifs", "description")
 
 
         // check
         System.out.println("CAN DRAW OVERLAYS: ${Settings.canDrawOverlays(applicationContext)}")
-        // Use this intent to enable permision
+        // Use this intent to enable permission
         if (!Settings.canDrawOverlays(applicationContext)) {
             val intent = Intent(
                 Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
@@ -264,6 +306,12 @@ class AccessibilityMenu : AccessibilityService() {
                                                 )
                                             }
 
+                                            // show notification
+                                            sendNotification(
+                                                "Accessibility Service Usage Saved!",
+                                                "Used Readr Accessibility Service. Return to app history page to view or clear usage history. "
+                                            )
+
                                         }
 
                                         override fun onFailure(errorCode: Int) {
@@ -272,11 +320,18 @@ class AccessibilityMenu : AccessibilityService() {
                                                 "FINAL SCREENSHOT ERROR",
                                                 "ERROR CODE: $errorCode"
                                             )
+
                                             Toast.makeText(
                                                 applicationContext,
                                                 "FAILED TO TAKE FINAL SCREENSHOT. ERROR CODE: $errorCode",
                                                 Toast.LENGTH_SHORT
                                             ).show()
+
+                                            // show notification
+                                            sendNotification(
+                                                "Accessibility Service Usage Not saved :(",
+                                                "Failed to save usage of accessibility service. The app history page will not show this usage. "
+                                            )
                                         }
                                     }
                                 )

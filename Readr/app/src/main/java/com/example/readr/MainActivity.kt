@@ -44,6 +44,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.Divider
 import androidx.compose.material3.FloatingActionButton
@@ -67,10 +68,12 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import com.example.readr.data.FirebaseHandler
 import com.example.readr.data.ImageLoader
 //import com.example.readr.AccessibilityMenuService.LocalBinder
 import com.example.readr.data.PersistentStorage
 import com.example.readr.presentation.ChangeReplacedTextSizeSlider
+import com.example.readr.presentation.ChangeTextScaleSlider
 import com.example.readr.presentation.onboarding.OnBoardingScreen
 import com.example.readr.presentation.onscaffold.BottomBar
 import com.example.readr.presentation.onscaffold.COLLAPSED_TOP_BAR_HEIGHT
@@ -87,6 +90,10 @@ import kotlin.math.min
 
 
 class MainActivity : ComponentActivity() {
+
+    companion object {
+        lateinit var context: Context
+    }
 
     // in main view, 0. other outernavigation things do not have tabs (?)
     val tab_titles:MutableList<String> = mutableListOf()
@@ -201,21 +208,32 @@ class MainActivity : ComponentActivity() {
 
     var darkTheme:Boolean = false
 
+    lateinit var fh:FirebaseHandler
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        MainActivity.context = applicationContext
 
         initOnScaffolds()
 
         setContent {
 
             val cursor = contentResolver.query(Uri.parse(PersistentStorage.URL), null, null, null, null)
-            var temp = false
+            var temp = true//false
             if (cursor!!.moveToFirst()) temp = true
             cursor.close()
             var finishedOnboarding by remember { mutableStateOf(temp) }
 
             var localDarkTheme by remember { mutableStateOf(false) }
             var viewNo by remember(outerNavPageNo) { mutableIntStateOf(outerNavPageNo) }
+
+            // set text size
+            fh = FirebaseHandler()
+            fh.loadTextSizes {
+                Variables.overlayTextSize = it
+            }
+
 
             // add theme switcher
             dropdownItems.add(DDItem(
@@ -291,6 +309,8 @@ class MainActivity : ComponentActivity() {
                     var readTxt by remember { mutableStateOf(readText) }
                     var currTxt by remember { mutableStateOf("") }
 
+                    System.out.println("COMPOSING OUTERNAV 0")
+
                     Column(
                         modifier = Modifier.padding(top = COLLAPSED_TOP_BAR_HEIGHT + 16.dp,
                             bottom = 16.dp,
@@ -313,9 +333,10 @@ class MainActivity : ComponentActivity() {
                                 when (idx) {
                                     0 -> ShowReadingView(toggle, { toggle = !toggle },
                                         readTxt, currTxt,
-                                        { readTxt = it }, { currTxt = it })
-                                    1 -> ShowDashboard(toggle, { toggle = !toggle })
-                                    2 -> ShowSettings(toggle, { toggle = !toggle })
+                                        { readTxt = it }, { currTxt = it },
+                                        { recomposeOuter() } )
+                                    1 -> ShowDashboard(toggle, { toggle = !toggle }, { recomposeOuter() })
+                                    2 -> ShowSettings(toggle, { toggle = !toggle }, { recomposeOuter() })
                                 }
                             }
 
@@ -426,8 +447,8 @@ class MainActivity : ComponentActivity() {
     @Composable
     fun ShowReadingView(recomposeBool:Boolean, recompose:()->Unit,
                         readTxt:String, currTxt: String,
-                        setReadTxt: (String)->Unit, setCurrTxt:(String)->Unit) {
-        Text("READING VIEW")
+                        setReadTxt: (String)->Unit, setCurrTxt:(String)->Unit,
+                        recomposeOuter:()->Unit, ) {
 
 
         Row(
@@ -478,7 +499,7 @@ class MainActivity : ComponentActivity() {
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Text("HELP")
+                            Text("HELP", style=LocalTextStyles.current.l)
                             Icon(painterResource(R.drawable.sound_icon), "Play word button", modifier=Modifier.heightIn(30.dp, 30.dp))
                         }
                     }
@@ -492,7 +513,7 @@ class MainActivity : ComponentActivity() {
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Text("SKIP")
+                            Text("SKIP", style= LocalTextStyles.current.l)
                             Icon(painterResource(R.drawable.skip_icon), "Skip word button", modifier=Modifier.heightIn(30.dp, 30.dp))
                         }
                     }
@@ -565,7 +586,8 @@ class MainActivity : ComponentActivity() {
                     shape = RoundedCornerShape(16.dp),
                 ) {
 
-                    Text("YAY YOU COMPLETED HAHA", modifier = Modifier.padding(10.dp))
+                    Text("YAY YOU COMPLETED HAHA", modifier = Modifier.padding(10.dp),
+                        style= LocalTextStyles.current.l)
                     // TODO: better completion screen to give sense of accomplishment
 
                 }
@@ -576,8 +598,7 @@ class MainActivity : ComponentActivity() {
 
 
     @Composable
-    fun ShowDashboard(recomposeBool:Boolean, recompose:()->Unit) {
-        Text("DASHBOARD VIEW")
+    fun ShowDashboard(recomposeBool:Boolean, recompose:()->Unit, recomposeOuter:()->Unit, ) {
 
         Column(
             modifier = Modifier
@@ -585,7 +606,7 @@ class MainActivity : ComponentActivity() {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            ChangeReplacedTextSizeSlider()
+            ChangeReplacedTextSizeSlider({ recomposeOuter() })
 
             var amenuEnabled: Boolean by remember(
                 (getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager) // accessibilty manager
@@ -654,7 +675,7 @@ class MainActivity : ComponentActivity() {
             },
                 Modifier.wrapContentSize(),
             ) {
-                Text("Open accessibility page in Settings")
+                Text("Open accessibility page in Settings", style= LocalTextStyles.current.m)
             }
 
 
@@ -677,7 +698,7 @@ class MainActivity : ComponentActivity() {
             modifier = Modifier
                 .wrapContentHeight()
                 .fillMaxWidth()
-                .padding(horizontal=16.dp),
+                .padding(horizontal = 16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -685,14 +706,15 @@ class MainActivity : ComponentActivity() {
 
             Row(
                 modifier = Modifier.wrapContentSize(),
-                horizontalArrangement = Arrangement.spacedBy(5.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
 
 
                 Icon(
                     Icons.Filled.Delete, "Delete/Clear Text replacement history",
                     tint = Color.Red,
-                    modifier = Modifier.size(32.dp)
+                    modifier = Modifier
+                        .size(32.dp)
                         .noRippleClickable {
                             // confirmation dialog
                             showConfirmationDialog = true
@@ -719,7 +741,7 @@ class MainActivity : ComponentActivity() {
 
         LazyVerticalGrid(
             GridCells.Adaptive(minSize = HistoryItem.width),
-            verticalArrangement = Arrangement.SpaceEvenly,
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
 
             items(histItemCnt) {
@@ -739,10 +761,10 @@ class MainActivity : ComponentActivity() {
                     recompose()
                 },
                 title = {
-                    Text("Clear history: CONFIRMATION")
+                    Text("Clear history: CONFIRMATION", style=LocalTextStyles.current.l)
                 },
                 text = {
-                    Text("Are you sure you want to clear all history? ")
+                    Text("Are you sure you want to clear all history? ", style= LocalTextStyles.current.m)
                 },
                 confirmButton = {
                     Button({
@@ -750,16 +772,24 @@ class MainActivity : ComponentActivity() {
                         showConfirmationDialog = false
                         recomposeOuter()
                         recompose()
-                    }) {
-                        Text("Confirm")
+                    },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color.Red,
+                        )
+                    ) {
+                        Text("Confirm", style= LocalTextStyles.current.l)
                     }
                 },
                 dismissButton = {
                     Button({
                         showConfirmationDialog = false
                         recompose()
-                    }) {
-                        Icon(Icons.Filled.Close, "Dismiss confirmation dialog", tint=Color.Black)
+                    },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color.Gray,
+                        )
+                    ) {
+                        Text("Cancel", style= LocalTextStyles.current.l)
                     }
                 }
             )
@@ -770,14 +800,16 @@ class MainActivity : ComponentActivity() {
 
 
     @Composable
-    fun ShowSettings(recomposeBool:Boolean, recompose:()->Unit) {
-        Text("SETTINGS VIEW")
+    fun ShowSettings(recomposeBool:Boolean, recompose:()->Unit, recomposeOuter:()->Unit) {
 
         Column (
             modifier = Modifier
                 .fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            ChangeReplacedTextSizeSlider()
+            ChangeReplacedTextSizeSlider({ recomposeOuter() })
+
+            ChangeTextScaleSlider({ recomposeOuter() })
         }
 
     }

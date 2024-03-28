@@ -42,8 +42,8 @@ import com.example.readr.ui.theme.LocalTextStyles
 class HistoryItem(val num:Int) {
 
     companion object {
-        val width = 150.dp
-        val height = 150.dp
+        val width = 160.dp
+        val height = 160.dp
     }
 
     private val imgl = ImageLoader()
@@ -82,7 +82,7 @@ class HistoryItem(val num:Int) {
                 ) {
                     Text(chapterNumStr, style=LocalTextStyles.current.l, modifier = Modifier.fillMaxWidth().wrapContentHeight(), textAlign = TextAlign.Center)
                 }*/
-                System.out.println("YES BOX")
+                //System.out.println("YES BOX")
             }
         }
     }
