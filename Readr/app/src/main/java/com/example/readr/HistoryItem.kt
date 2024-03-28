@@ -99,7 +99,7 @@ class HistoryItem(val num:Int) {
         ) {
 
             item {
-                Text("BEFORE USING SERVICE: ")
+                Text("SERVICE INPUT: ", style= LocalTextStyles.current.l)
 
                 Spacer(Modifier.height(4.dp))
 
@@ -114,7 +114,7 @@ class HistoryItem(val num:Int) {
 
 
             item {
-                Text("AFTER USING SERVICE: ")
+                Text("SERVICE OUTPUT: ", style= LocalTextStyles.current.l)
 
                 Spacer(Modifier.height(4.dp))
 

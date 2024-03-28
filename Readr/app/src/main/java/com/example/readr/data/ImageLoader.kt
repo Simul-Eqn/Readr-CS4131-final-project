@@ -10,6 +10,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import com.example.readr.MainActivity
 import com.google.firebase.storage.FirebaseStorage
 import com.google.firebase.storage.StorageReference
 import java.io.ByteArrayOutputStream
@@ -62,12 +63,19 @@ class ImageLoader {
 
     }
 
-    fun saveImage(bitmap:Bitmap, name:String, ctx: Context) { // ALL .PNG
+    fun saveImage(bitmap:Bitmap, name:String, ctx: Context = MainActivity.context) { // ALL .PNG
         val ref = storageRef.child(name)
         val baos = ByteArrayOutputStream()
         bitmap.compress(Bitmap.CompressFormat.PNG, 100, baos)
 
         ref.putBytes(baos.toByteArray()).addOnFailureListener {
+            Log.e("FILE UPLOAD FAIL", "FAILED TO UPLOAD FILE $name TO FIREBVASE STORAGE", it)
+            Toast.makeText(ctx, "FAILED TO UPLOAD FILE $name TO FIREBASE STORAGE", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun saveImage(byteArray:ByteArray, name:String, ctx:Context = MainActivity.context) { // ALSO .PNG
+        storageRef.child(name).putBytes(byteArray).addOnFailureListener {
             Log.e("FILE UPLOAD FAIL", "FAILED TO UPLOAD FILE $name TO FIREBVASE STORAGE", it)
             Toast.makeText(ctx, "FAILED TO UPLOAD FILE $name TO FIREBASE STORAGE", Toast.LENGTH_SHORT).show()
         }

@@ -28,6 +28,7 @@ import com.example.readr.presentation.onboarding.components.OnBoardingButton
 import com.example.readr.presentation.onboarding.components.OnBoardingPage
 import com.example.readr.presentation.onboarding.components.OnBoardingTextButton
 import com.example.readr.presentation.onboarding.components.PageIndicator
+import com.example.readr.ui.theme.LocalTextStyles
 import kotlinx.coroutines.launch
 
 
@@ -71,7 +72,8 @@ fun OnBoardingScreen(endFunc:()->Unit) {
             }
         }
 
-        Text(pages[pagerState.currentPage].title, fontSize=20.sp, maxLines=1, modifier = Modifier.fillMaxWidth().padding(16.dp))
+        Text(pages[pagerState.currentPage].title, fontSize=20.sp, maxLines=1, modifier = Modifier.fillMaxWidth().padding(16.dp),
+            style= LocalTextStyles.current.l)
 
         HorizontalPager(state = pagerState) {
             OnBoardingPage(page = pages[it])
@@ -79,7 +81,8 @@ fun OnBoardingScreen(endFunc:()->Unit) {
 
         Spacer(modifier = Modifier.weight(0.5f))
 
-        Text(pages[pagerState.currentPage].description, fontSize=10.sp, maxLines=4, modifier = Modifier.fillMaxWidth().padding(16.dp))
+        Text(pages[pagerState.currentPage].description, fontSize=10.sp, maxLines=4, modifier = Modifier.fillMaxWidth().padding(16.dp),
+            style= LocalTextStyles.current.m)
 
         Spacer(modifier = Modifier.weight(0.5f))
 

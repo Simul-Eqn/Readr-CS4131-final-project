@@ -86,4 +86,12 @@ dependencies {
     // screen overlay?
     implementation("io.github.torrydo:floating-bubble-view:0.6.4")
 
+    // camera stuff
+    implementation("androidx.camera:camera-camera2:1.3.2")
+    implementation("androidx.camera:camera-lifecycle:1.3.2")
+    implementation("androidx.camera:camera-view:1.3.2")
+    implementation("androidx.camera:camera-extensions:1.3.2")
+
+    implementation("com.google.accompanist:accompanist-permissions:0.34.0")
+
 }

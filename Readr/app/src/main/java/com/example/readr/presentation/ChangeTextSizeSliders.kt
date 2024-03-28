@@ -15,6 +15,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import com.example.readr.Variables
+import com.example.readr.ui.theme.LocalTextStyles
 
 @Composable
 fun ChangeReplacedTextSizeSlider(onChange: (Int)->Unit) {
@@ -25,7 +26,7 @@ fun ChangeReplacedTextSizeSlider(onChange: (Int)->Unit) {
             withStyle(SpanStyle(background = Color.White)) {
                 append("Overlay text size: $sliderPosition")
             }
-        })
+        }, style=LocalTextStyles.current.l)
 
         Slider(
             value = sliderPosition,
@@ -55,7 +56,7 @@ fun ChangeTextScaleSlider(onChange: (Float)->Unit) {
             withStyle(SpanStyle(background = Color.White)) {
                 append("In-app text scale: $sliderPosition")
             }
-        })
+        }, style= LocalTextStyles.current.l)
 
         Slider(
             value = sliderPosition,

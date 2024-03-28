@@ -12,6 +12,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.text.style.TextOverflow
+import com.example.readr.ui.theme.LocalTextStyles
 
 class DisplayTopBarFunc {
 }
@@ -27,7 +28,7 @@ fun DisplayTopBar(title:String, backButtonFunc:(() -> Unit)) {
             titleContentColor = MaterialTheme.colorScheme.primary,
         ),
         title = {
-            Text(title, maxLines=1, overflow = TextOverflow.Ellipsis)
+            Text(title, maxLines=1, overflow = TextOverflow.Ellipsis, style=LocalTextStyles.current.l)
         },
         navigationIcon = {
             IconButton(onClick = {
@@ -52,7 +53,7 @@ fun DisplayTopBar(title:String) {
             titleContentColor = MaterialTheme.colorScheme.primary,
         ),
         title = {
-            Text(title, maxLines=1, overflow = TextOverflow.Ellipsis)
+            Text(title, maxLines=1, overflow = TextOverflow.Ellipsis, style= LocalTextStyles.current.l)
         },
     )
 }

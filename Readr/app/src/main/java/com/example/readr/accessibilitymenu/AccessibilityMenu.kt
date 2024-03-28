@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.app.ActivityCompat
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
+import com.example.readr.R
 import com.example.readr.Variables
 import com.example.readr.data.ImageLoader
 import com.example.readr.presentation.ChangeReplacedTextSizeSlider
@@ -62,7 +63,7 @@ class AccessibilityMenu : AccessibilityService() {
 
 
     lateinit var notificationManager: NotificationManager
-    val channelID = "com.example.readr.notifications"
+    val channelID = "com.example.readr.amenunotifications"
     var nextNotifId = 0
 
     fun createNotificationChannel(id:String, name:String, description:String) {
@@ -80,6 +81,7 @@ class AccessibilityMenu : AccessibilityService() {
         val notification = Notification.Builder(this, channelID)
             .setContentTitle(title)
             .setContentText(text)
+            .setSmallIcon(R.drawable.ic_launcher_background)
             //.setSmallIcon(R.drawable.appicon) TODO GET AN ICON
             .build()
 
@@ -323,7 +325,7 @@ class AccessibilityMenu : AccessibilityService() {
 
                                             Toast.makeText(
                                                 applicationContext,
-                                                "FAILED TO TAKE FINAL SCREENSHOT. ERROR CODE: $errorCode",
+                                                "FAILED TO SAVE ACCESSIBILITY SERVICE USAGE. ERROR CODE: $errorCode",
                                                 Toast.LENGTH_SHORT
                                             ).show()
 

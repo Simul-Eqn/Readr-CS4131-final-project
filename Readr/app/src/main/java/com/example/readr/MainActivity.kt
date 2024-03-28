@@ -1,9 +1,14 @@
 package com.example.readr
 
+import android.Manifest
 import android.accessibilityservice.AccessibilityServiceInfo
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
@@ -13,6 +18,7 @@ import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
 import android.speech.tts.Voice
 import android.util.Log
+import android.view.Window
 import android.view.accessibility.AccessibilityManager
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -39,9 +45,8 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Book
-import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Camera
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -52,7 +57,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -68,6 +72,8 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import androidx.core.app.ActivityCompat
+import com.example.readr.camera.CameraScreen
 import com.example.readr.data.FirebaseHandler
 import com.example.readr.data.ImageLoader
 //import com.example.readr.AccessibilityMenuService.LocalBinder
@@ -85,6 +91,11 @@ import com.example.readr.ui.theme.LocalMoreColors
 import com.example.readr.ui.theme.LocalSpacings
 import com.example.readr.ui.theme.LocalTextStyles
 import com.example.readr.ui.theme.ReadrTheme
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.PermissionState
+import com.google.accompanist.permissions.isGranted
+import com.google.accompanist.permissions.rememberPermissionState
+import com.google.android.gms.vision.CameraSource
 import java.util.Locale
 import kotlin.math.min
 
@@ -93,6 +104,8 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         lateinit var context: Context
+        lateinit var window: Window
+
     }
 
     // in main view, 0. other outernavigation things do not have tabs (?)
@@ -111,7 +124,7 @@ class MainActivity : ComponentActivity() {
     // STT
     private lateinit var speechRecognizer: SpeechRecognizer
 
-    // IMLG
+    // IMGL
     private val imgl = ImageLoader()
 
     // ACCESSIBILITY MENU
@@ -131,6 +144,9 @@ class MainActivity : ComponentActivity() {
             mAMenu = mLocalBinder.instance
         }
     }*/
+
+    // CAMERA
+    lateinit var cameraSource: CameraSource
 
 
     fun initOnScaffolds() {
@@ -210,10 +226,47 @@ class MainActivity : ComponentActivity() {
 
     lateinit var fh:FirebaseHandler
 
+
+    // notifications
+
+    lateinit var notificationManager: NotificationManager
+    val channelID = "com.example.readr.mainnotifications"
+    var nextNotifId = 0
+
+    fun createNotificationChannel(id:String, name:String, description:String) {
+        val importance = NotificationManager.IMPORTANCE_LOW
+        val channel = NotificationChannel(id, name, importance)
+        channel.description = description
+        channel.enableLights(true)
+        channel.lightColor = android.graphics.Color.GREEN
+        channel.enableVibration(true)
+        channel.vibrationPattern = longArrayOf(100, 200, 300, 400, 500, 400, 300, 200, 400)
+        notificationManager.createNotificationChannel(channel)
+    }
+
+    fun sendNotification(title:String, text:String, ) {
+        val notification = Notification.Builder(this, channelID)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setSmallIcon(R.drawable.ic_launcher_background)
+            //.setSmallIcon(R.drawable.appicon) TODO GET AN ICON
+            .build()
+
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            Toast.makeText(this, "Please enable notifications.", Toast.LENGTH_SHORT).show()
+        }
+
+        notificationManager.notify(nextNotifId++, notification)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         MainActivity.context = applicationContext
+        MainActivity.window = window
+
+        notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        createNotificationChannel(channelID, "MainNotifs", "description")
 
         initOnScaffolds()
 
@@ -281,6 +334,7 @@ class MainActivity : ComponentActivity() {
 
     var histItemNum = -1
 
+    @OptIn(ExperimentalPermissionsApi::class)
     @Composable
     fun ShowView(viewNo:Int, setViewNo:(Int)->Unit, recomposeBool: Boolean, recomposeOuter:()->Unit) {
 
@@ -355,7 +409,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            1 -> Scaffold(
+            /*1 -> Scaffold(
                 modifier = Modifier.fillMaxSize(),
                 topBar = { DisplayTopBar("Camera", { setViewNo(0) }) }
             ) {
@@ -366,6 +420,16 @@ class MainActivity : ComponentActivity() {
                 ) {
                     ShowCameraView()
                 }
+            }*/
+
+            1 -> {
+                val cameraPermissionState: PermissionState = rememberPermissionState(android.Manifest.permission.CAMERA)
+
+                ShowCameraPage(
+                    hasPermission = cameraPermissionState.status.isGranted,
+                    onRequestPermission = cameraPermissionState::launchPermissionRequest,
+                    { setViewNo(0) },
+                )
             }
 
             2 -> Scaffold( // SHOW HISTORY ITEM
@@ -814,10 +878,34 @@ class MainActivity : ComponentActivity() {
 
     }
 
-    @Composable
-    fun ShowCameraView() {
 
+
+
+    @Composable
+    fun ShowCameraPage(hasPermission: Boolean, onRequestPermission: () -> Unit, backButtonFunc: ()->Unit) {
+        if (hasPermission) {
+            CameraScreen(backButtonFunc, ::sendNotification)
+        } else {
+
+            // request permission
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(text = "Please grant the permission to use the camera to use the the camera feature of this app.", style= LocalTextStyles.current.l)
+                Spacer(modifier = Modifier.height(16.dp))
+                Button(onClick = onRequestPermission) {
+                    Icon(imageVector = Icons.Default.Camera, contentDescription = "Camera")
+                    Text(text = "Grant permission", style=LocalTextStyles.current.xl)
+                }
+            }
+
+        }
     }
+
 
 
 
