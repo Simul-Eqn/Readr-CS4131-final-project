@@ -69,21 +69,31 @@ import kotlin.random.Random
 
 @Composable
 fun CameraScreen(backButtonFunc: () -> Unit, sendNotification: (String, String) -> Unit,
-                 setReadText:(String)->Unit, goToReadTextScreen:()->Unit) {
+                 setReadText:(String)->Unit, goToReadTextScreen:()->Unit,
+                 setOnback:((()->Unit)?)->Unit ) {
 
     var overlayContent : @Composable()(PaddingValues)->Unit by remember { mutableStateOf({}) }
 
-    var addOffsetY:Float by remember { mutableFloatStateOf(0f) }
+    //var addOffsetY:Float by remember { mutableFloatStateOf(0f) }
+    //var addOffsetX:Float by remember { mutableFloatStateOf(0f) }
 
     var frozen:Int by remember { mutableIntStateOf(0) } // 0 means not frozen, 1 means capturing init, 2 means capturing final, 3 means captured and frozen.
 
-    CameraContent( overlayContent , { overlayContent = it } , addOffsetY , { addOffsetY = it }, backButtonFunc,
+    when (frozen) {
+        0 -> setOnback(null) // reset to default onback
+        else -> setOnback{ frozen = 0 }
+    }
+
+    CameraContent( overlayContent , { overlayContent = it } ,
+        // addOffsetX , { addOffsetX = it }, addOffsetY , { addOffsetY = it },
+        backButtonFunc,
         frozen, { frozen = it }, sendNotification, setReadText, goToReadTextScreen, )
 }
 
 @Composable
 private fun CameraContent(overlayContent:@Composable()(PaddingValues)->Unit, setOverlayContent:(@Composable()(PaddingValues)->Unit)->Unit,
-                          addOffsetY: Float, setAddOffsetY:(Float)->Unit , backButtonFunc: () -> Unit,
+                          //addOffsetX: Float, setAddOffsetX:(Float)->Unit , addOffsetY: Float, setAddOffsetY:(Float)->Unit ,
+                          backButtonFunc: () -> Unit,
                           frozen: Int, setFrozen: (Int)->Unit, sendNotification: (String, String) -> Unit,
                           setReadText:(String)->Unit, goToReadTextScreen:()->Unit) {
 
@@ -109,15 +119,15 @@ private fun CameraContent(overlayContent:@Composable()(PaddingValues)->Unit, set
             contentAlignment = androidx.compose.ui.Alignment.BottomCenter
         ) {
 
-            key(addOffsetY, frozen) {
+            key(frozen) {
 
                 AndroidView(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(paddingValues)
-                        .noRippleClickable {
+                        /*.noRippleClickable {
                             setFrozen(0)
-                        },
+                        }*/,
                     factory = { context ->
                         PreviewView(context).apply {
                             layoutParams = LinearLayout.LayoutParams(
@@ -136,8 +146,10 @@ private fun CameraContent(overlayContent:@Composable()(PaddingValues)->Unit, set
                                 view = overlayContent,
                                 setView = setOverlayContent,
                                 topPadding = -paddingValues.calculateTopPadding().value,
-                                addOffsetY = addOffsetY,
-                                setAddOffsetY = setAddOffsetY,
+                                //addOffsetX = addOffsetX,
+                                //setAddOffsetX = setAddOffsetX,
+                                //addOffsetY = addOffsetY,
+                                //setAddOffsetY = setAddOffsetY,
                                 frozen = frozen,
                                 setFrozen = setFrozen,
                                 sendNotification = sendNotification,
@@ -165,24 +177,33 @@ private fun CameraContent(overlayContent:@Composable()(PaddingValues)->Unit, set
 
             Box(modifier = Modifier
                 .padding(paddingValues)
-                .padding(bottom = 16.dp)
                 .wrapContentSize()) {
 
                 if (frozen == 0) {
-                    // freeze button
-                    Button(
-                        onClick = { setFrozen(1); System.out.println("IN BUTTON FROZEN: $frozen") },
-                        shape = CircleShape,
-                        colors = ButtonDefaults.buttonColors(containerColor = androidx.compose.ui.graphics.Color.LightGray),
-                        modifier = Modifier
-                            .border(
-                                5.dp,
-                                color = androidx.compose.ui.graphics.Color.DarkGray,
-                                shape = CircleShape
+
+                    Box(modifier = Modifier.wrapContentSize().padding(bottom = 48.dp)) {
+                        // freeze button
+                        Button(
+                            onClick = { setFrozen(1); System.out.println("IN BUTTON FROZEN: $frozen") },
+                            shape = CircleShape,
+                            colors = ButtonDefaults.buttonColors(containerColor = androidx.compose.ui.graphics.Color.LightGray),
+                            modifier = Modifier
+                                .border(
+                                    5.dp,
+                                    color = androidx.compose.ui.graphics.Color.Gray,
+                                    shape = CircleShape
+                                )
+                                .size(80.dp),
+                            contentPadding = PaddingValues(0.dp),
+                        ) {
+                            Icon(
+                                Icons.Filled.Camera,
+                                "Camera capture button",
+                                modifier = Modifier.size(60.dp)
                             )
-                            .size(80.dp),
-                        contentPadding = PaddingValues(0.dp),
-                    ) { Icon(Icons.Filled.Camera, "Camera capture button") }
+                        }
+
+                    }
 
                 } else {
                     // buttons
@@ -195,6 +216,16 @@ private fun CameraContent(overlayContent:@Composable()(PaddingValues)->Unit, set
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
 
+                        item { // retake button
+                            Button({ setFrozen(0) }) {
+                                Row(modifier = Modifier.wrapContentSize(), horizontalArrangement=Arrangement.spacedBy(4.dp)) {
+                                    Icon(Icons.Default.Camera, "Retake picture button")
+                                    Text("Retake picture", style= LocalTextStyles.current.m)
+                                }
+
+                            }
+                        }
+
                         item { // send to focused reading
                             Button({
                                 setReadText(text)
@@ -202,7 +233,7 @@ private fun CameraContent(overlayContent:@Composable()(PaddingValues)->Unit, set
                             }) {
                                 Row(modifier = Modifier.wrapContentSize(), horizontalArrangement=Arrangement.spacedBy(4.dp)) {
                                     Icon(Icons.Filled.ArrowRightAlt, "Send to focused reading button")
-                                    Text("Send to focused reading")
+                                    Text("Send to focused reading", style= LocalTextStyles.current.m)
                                 }
 
                             }
@@ -214,7 +245,7 @@ private fun CameraContent(overlayContent:@Composable()(PaddingValues)->Unit, set
                             }) {
                                 Row(modifier = Modifier.wrapContentSize(), horizontalArrangement=Arrangement.spacedBy(4.dp)) {
                                     Icon(Icons.Filled.SelectAll, "Select all button")
-                                    Text("Select All")
+                                    Text("Select All", style= LocalTextStyles.current.m)
                                 }
 
                             }
@@ -281,8 +312,10 @@ private fun startTextRecognition(
     view: @Composable()(PaddingValues)->Unit,
     setView: (@Composable()(PaddingValues)->Unit) -> Unit,
     topPadding: Float,
-    addOffsetY: Float,
-    setAddOffsetY:(Float)->Unit,
+    //addOffsetX: Float,
+    //setAddOffsetX:(Float)->Unit,
+    //addOffsetY: Float,
+    //setAddOffsetY:(Float)->Unit,
     frozen: Int,
     setFrozen: (Int)->Unit,
     sendNotification: (String, String) -> Unit,
@@ -294,7 +327,7 @@ private fun startTextRecognition(
     cameraController.imageAnalysisTargetSize = CameraController.OutputSize(AspectRatio.RATIO_16_9)
     cameraController.setImageAnalysisAnalyzer(
         ContextCompat.getMainExecutor(context),
-        TextRecognitionAnalyzer(view, setView, topPadding, addOffsetY, setAddOffsetY, frozen, setFrozen, sendNotification, setText, )
+        TextRecognitionAnalyzer(view, setView, topPadding, frozen, setFrozen, sendNotification, setText, )
     )
 
     cameraController.bindToLifecycle(lifecycleOwner)

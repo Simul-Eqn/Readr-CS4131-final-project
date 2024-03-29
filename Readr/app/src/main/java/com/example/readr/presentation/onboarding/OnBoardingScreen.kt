@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -56,15 +57,23 @@ val pages = listOf<Page>(
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun OnBoardingScreen(endFunc:()->Unit) {
+fun OnBoardingScreen(initPage:Int? = null, endFunc:()->Unit) {
     Column(modifier = Modifier.fillMaxSize()) {
-        val pagerState = rememberPagerState(0) {
-            pages.size
+        lateinit var pagerState:PagerState
+        pagerState = if (initPage != null) {
+            rememberPagerState(initPage!!) {
+                pages.size
+            }
+        } else {
+            rememberPagerState(0) {
+                pages.size
+            }
         }
 
         val buttonState = remember {
             derivedStateOf {
                 when (pagerState.currentPage) {
+                    initPage -> listOf("Back", "Get Started")
                     0 -> listOf("", "Next")
                     pages.size-1 -> listOf("Back", "Get Started")
                     else -> listOf("Back", "Next")
@@ -72,19 +81,26 @@ fun OnBoardingScreen(endFunc:()->Unit) {
             }
         }
 
-        Text(pages[pagerState.currentPage].title, fontSize=20.sp, maxLines=1, modifier = Modifier.fillMaxWidth().padding(16.dp),
+
+        Spacer(modifier = Modifier.weight(0.5f))
+
+        Text(pages[pagerState.currentPage].title, fontSize=20.sp, maxLines=1, modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
             style= LocalTextStyles.current.l)
 
         HorizontalPager(state = pagerState) {
             OnBoardingPage(page = pages[it])
         }
 
-        Spacer(modifier = Modifier.weight(0.5f))
+        Spacer(modifier = Modifier.weight(0.35f))
 
-        Text(pages[pagerState.currentPage].description, fontSize=10.sp, maxLines=4, modifier = Modifier.fillMaxWidth().padding(16.dp),
+        Text(pages[pagerState.currentPage].description, fontSize=10.sp, maxLines=4, modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
             style= LocalTextStyles.current.m)
 
-        Spacer(modifier = Modifier.weight(0.5f))
+        Spacer(modifier = Modifier.weight(0.65f))
 
         Row(modifier = Modifier
             .fillMaxWidth()
@@ -95,7 +111,7 @@ fun OnBoardingScreen(endFunc:()->Unit) {
         ) {
             PageIndicator(modifier = Modifier.width(Dimens.IndicatorWidth), pageSize=pages.size, selectedPage = pagerState.currentPage)
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 val scope = rememberCoroutineScope()
                 if (buttonState.value[0].isNotEmpty()) {
                     OnBoardingTextButton(text = buttonState.value[0]) {

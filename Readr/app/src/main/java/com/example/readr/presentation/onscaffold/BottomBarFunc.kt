@@ -53,7 +53,8 @@ fun BottomBar(idx:Int, setIdx:(Int)->Unit, tab_titles:List<String>, tab_images:L
                                         maxWidth = 40.dp,
                                         minHeight = 20.dp,
                                         maxHeight = 20.dp
-                                    )
+                                    ),
+                                    colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onBackground),
                                 )
                             } else if (tab_images[indx] is ImageVector) {
                                 Image(

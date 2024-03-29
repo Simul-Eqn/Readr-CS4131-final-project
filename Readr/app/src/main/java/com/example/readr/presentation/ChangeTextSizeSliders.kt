@@ -6,6 +6,10 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.SpanStyle
@@ -21,17 +25,19 @@ fun ChangeReplacedTextSizeSlider(overlayTextSize:Float,
                                  textScale:Float=Variables.textScale, // this is to allow recomposition
                                  setOverlayTextSize:(Float)->Unit) {
 
-    Column {
+    var ots by remember { mutableFloatStateOf(overlayTextSize) }
+
+    Column(modifier = Modifier.forceRecomposeWith(textScale).forceRecomposeWith(overlayTextSize)) {
 
         Text(buildAnnotatedString {
-            withStyle(SpanStyle(background = Color.White)) {
-                append("Overlay text size: $overlayTextSize")
+            withStyle(SpanStyle(background = MaterialTheme.colorScheme.background)) {
+                append("(Overlay) Replaced text size: $ots")
             }
-        }, style=LocalTextStyles.current.l, modifier = Modifier.forceRecomposeWith(textScale))
+        }, style=LocalTextStyles.current.l, modifier = Modifier.forceRecomposeWith(textScale).forceRecomposeWith(overlayTextSize))
 
         Slider(
-            value = overlayTextSize,
-            onValueChange = { setOverlayTextSize(Math.round(it).toFloat()) },
+            value = ots,
+            onValueChange = { ots = Math.round(it).toFloat() ; setOverlayTextSize(Math.round(it).toFloat()) },
             colors = SliderDefaults.colors(
                 thumbColor = MaterialTheme.colorScheme.secondary,
                 activeTrackColor = MaterialTheme.colorScheme.secondary,
@@ -39,7 +45,7 @@ fun ChangeReplacedTextSizeSlider(overlayTextSize:Float,
             ),
             steps = 24,
             valueRange = 10f..35f,
-            modifier = Modifier.forceRecomposeWith(textScale)
+            modifier = Modifier.forceRecomposeWith(textScale).forceRecomposeWith(overlayTextSize)
         )
     }
 }
@@ -50,8 +56,8 @@ fun ChangeTextScaleSlider(textScale:Float, setTextScale: (Float)->Unit) {
     Column {
 
         Text(buildAnnotatedString {
-            withStyle(SpanStyle(background = Color.White)) {
-                append("In-app text scale: $textScale")
+            withStyle(SpanStyle(background = MaterialTheme.colorScheme.background)) {
+                append("(In-app) Text scale: $textScale")
             }
         }, style= LocalTextStyles.current.l)
 

@@ -1,7 +1,6 @@
 package com.example.readr
 
 import android.Manifest
-import android.accessibilityservice.AccessibilityServiceInfo
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -9,6 +8,8 @@ import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.MediaPlayer
+import android.net.ConnectivityManager
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
@@ -17,15 +18,18 @@ import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
 import android.speech.tts.Voice
+import android.util.DisplayMetrics
 import android.util.Log
 import android.view.Window
-import android.view.WindowManager
-import android.view.accessibility.AccessibilityManager
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -50,6 +54,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.Camera
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -58,6 +63,7 @@ import androidx.compose.material3.Divider
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -66,17 +72,25 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.core.app.ActivityCompat
+import androidx.core.view.WindowCompat
 import com.example.readr.camera.CameraScreen
 import com.example.readr.data.FirebaseHandler
 import com.example.readr.data.ImageLoader
@@ -101,8 +115,15 @@ import com.google.accompanist.permissions.PermissionState
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import com.google.android.gms.vision.CameraSource
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import me.nikhilchaudhari.quarks.CreateParticles
+import me.nikhilchaudhari.quarks.particle.EmissionType
 import java.util.Locale
+import java.util.concurrent.TimeUnit
 import kotlin.math.min
+import kotlin.random.Random
+import kotlin.random.Random.Default.nextInt
 
 
 class MainActivity : ComponentActivity() {
@@ -128,9 +149,13 @@ class MainActivity : ComponentActivity() {
 
     // STT
     private lateinit var speechRecognizer: SpeechRecognizer
+    var should_listen = false
 
     // IMGL
     private val imgl = ImageLoader()
+
+    // media player
+    lateinit var mediaPlayer:MediaPlayer
 
     // ACCESSIBILITY MENU
     /*var mBounded = false
@@ -152,6 +177,16 @@ class MainActivity : ComponentActivity() {
 
     // CAMERA
     lateinit var cameraSource: CameraSource
+
+    // onboarding page numbers, for help
+    val onboardingPageNum = mapOf<Int, Int?>( // first digit (tens) is outernav, second (ones) is innernav
+        // 1 to 2
+        0 to null, // reading view
+        1 to null, // dashboard
+        2 to null, // settings
+        10 to null, // camera
+        20 to null, // history item
+    )
 
 
     fun initOnScaffolds() {
@@ -276,6 +311,7 @@ class MainActivity : ComponentActivity() {
         // stt
         speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this)
 
+
         setContent {
 
             val cursor = contentResolver.query(Uri.parse(PersistentStorage.URL), null, null, null, null)
@@ -283,8 +319,9 @@ class MainActivity : ComponentActivity() {
             if (cursor!!.moveToFirst()) temp = true
             cursor.close()
             var finishedOnboarding by remember { mutableStateOf(temp) }
+            var onboardingInitPage:Int? = null
 
-            var localDarkTheme by remember { mutableStateOf(false) }
+            var localDarkTheme by remember { mutableStateOf(darkTheme) }
             var viewNo by remember(outerNavPageNo) { mutableIntStateOf(outerNavPageNo) }
 
 
@@ -295,49 +332,166 @@ class MainActivity : ComponentActivity() {
             fun recomposeOuter() { recomposeBool = !recomposeBool ; firstOne = false }
 
 
-            // set text size
-            fh = FirebaseHandler()
-            fh.loadTextSizes {
-                Variables.overlayTextSize = it
-                recomposeOuter()
+
+
+
+
+            // dark mode transition prep
+            WindowCompat.setDecorFitsSystemWindows(window, false)
+            val screenShotState = rememberScreenshotState()
+
+            val offsetX = remember { mutableFloatStateOf(0f) }
+            val offsetY = remember { mutableFloatStateOf(0f) }
+
+            val scope = rememberCoroutineScope()
+            val screenWidth = LocalConfiguration.current.screenWidthDp
+            val screenWidthPx = with(LocalDensity.current) { screenWidth.dp.toPx() }
+
+            val screenHeight = LocalConfiguration.current.screenHeightDp
+            val screenHeightPx = with(LocalDensity.current) { screenHeight.dp.toPx() }
+
+            val animationOffsetX =
+                animateFloatAsState(
+                    targetValue = offsetX.floatValue,
+                    label = "animation offset",
+                    finishedListener = {
+                        offsetX.floatValue = 0f
+                        screenShotState.setBitmap(null)
+                    },
+                    animationSpec = tween(2000)
+                )
+
+            val animationOffsetY =
+                animateFloatAsState(
+                    targetValue = offsetY.floatValue,
+                    label = "animation offset",
+                    finishedListener = {
+                        offsetY.floatValue = 0f
+                        screenShotState.setBitmap(null)
+                    },
+                    animationSpec = tween(2000)
+                )
+
+
+
+            if (dropdownItems.size < 2) {
+
+                // set text size
+                fh = FirebaseHandler()
+                fh.loadTextSizes {
+                    Variables.overlayTextSize = it
+                    firstOne = false
+                    recomposeOuter()
+                }
+
+                // add theme switcher
+                dropdownItems.add(
+                    DDItem(
+                        {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .wrapContentHeight(),
+                                horizontalArrangement = Arrangement.spacedBy(LocalSpacings.current.m),
+                            ) {
+                                Text("Theme: ", style = LocalTextStyles.current.m)
+                                ThemeSwitcher(darkTheme = localDarkTheme, onClick = {
+
+                                    scope.launch {
+                                        screenShotState.capture()
+                                        offsetX.floatValue = screenWidthPx
+                                        offsetY.floatValue = screenHeightPx
+                                        delay(400)
+
+                                        darkTheme = !darkTheme
+                                        localDarkTheme = darkTheme
+                                    }
+
+                                })
+                            }
+                        },
+                        { System.out.println("DARK THEME: $localDarkTheme and $darkTheme") },
+                    )
+                )
+
+                // add replay onboarding screen thing
+                dropdownItems.add(
+                    DDItem(
+                        {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .wrapContentHeight(),
+                                horizontalArrangement = Arrangement.spacedBy(LocalSpacings.current.m),
+                            ) {
+                                Text("Help", style = LocalTextStyles.current.m)
+                            }
+                        },
+                        {
+                            onboardingInitPage =
+                                onboardingPageNum[outerNavPageNo * 10 + innerNavTabNo]
+                            finishedOnboarding = false // re-show onboarding screen yey
+                        },
+                    )
+                )
+
+
+                // init TTS
+                initTTS()
+
+
             }
 
 
-            // add theme switcher
-            dropdownItems.add(DDItem(
-                {
-                    Row(
+
+            ReadrTheme(darkTheme = localDarkTheme) {
+
+
+                Box(modifier = Modifier.fillMaxSize()) {
+                    ScreenshotScope(
+                        screenshotState = screenShotState,
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .wrapContentHeight(),
-                        horizontalArrangement = Arrangement.spacedBy(LocalSpacings.current.m),
+                            .fillMaxSize()
+                            .background(color = MaterialTheme.colorScheme.background)
                     ) {
-                        Text("Theme: ", style= LocalTextStyles.current.m)
-                        ThemeSwitcher(darkTheme = localDarkTheme, onClick = { darkTheme = !darkTheme; localDarkTheme=darkTheme })
+
+
+
+                        ProvideTextStyle(TextStyle(color=MaterialTheme.colorScheme.onBackground)) {
+                            when (finishedOnboarding) {
+                                true -> ShowView(viewNo, {
+                                    outerNavPageNo = it
+                                    viewNo = it }, recomposeBool, ::recomposeOuter, firstOne)
+
+                                false -> OnBoardingScreen(onboardingInitPage) {
+                                    finishedOnboarding = true
+                                    Log.w("ONBOARDING", "FINISHED: $finishedOnboarding")
+                                    val values = ContentValues()
+                                    values.put(PersistentStorage.rdm, "HEHEH DONE")
+                                    contentResolver.insert(PersistentStorage.CONTENT_URI, values)
+                                }
+                            }
+
+                        }
+
+
                     }
-                },
-                {},
-            ))
-
-            // init TTS
-            initTTS()
-
-
-            ReadrTheme(darkTheme = darkTheme) {
-
-                when (finishedOnboarding) {
-                    true -> ShowView(viewNo, {
-                        outerNavPageNo = it
-                        viewNo = it }, recomposeBool, ::recomposeOuter, firstOne)
-
-                    false -> OnBoardingScreen {
-                        finishedOnboarding = true
-                        Log.w("ONBOARDING", "FINISHED: $finishedOnboarding")
-                        val values = ContentValues()
-                        values.put(PersistentStorage.rdm, "HEHEH DONE")
-                        contentResolver.insert(PersistentStorage.CONTENT_URI, values)
+                    screenShotState.bitmap.value?.asImageBitmap()?.let {
+                        Image(
+                            bitmap = it,
+                            contentDescription = "screen shot",
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clip(
+                                    shape = RemovableExpandingRectShape(
+                                        offsetX = animationOffsetX.value,
+                                        offsetY = animationOffsetY.value,
+                                    )
+                                )
+                        )
                     }
                 }
+
 
             }
 
@@ -366,10 +520,31 @@ class MainActivity : ComponentActivity() {
         val topBarTitle by remember(idx) { mutableStateOf(tab_titles[idx]) }
         val topBarImg by remember(idx) { mutableStateOf(topBarImgs[idx]) }
 
+        val initOnback = {
+            if (viewNo != 0) {
+                innerNavTabNo = 1 // since it all must mean go back to dashboard yes
+                setViewNo(0)
+            }
+        }
+
+        var onback = initOnback
+        BackPressHandler(onBackPressed = onback)
+
+        val setOnback:((()->Unit)?)->Unit = {
+            onback = if (it == null) {
+                initOnback
+            }  else {
+                it
+            }
+        }
+
+
         when (viewNo) {
             0 -> Scaffold(
-                modifier = Modifier.fillMaxSize(),
-                bottomBar = { BottomBar( idx, { setIdx(it) ; speechRecognizer.stopListening() } , tab_titles , tab_images ) },
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.background),
+                bottomBar = { BottomBar( idx, { setIdx(it) ; should_listen = false ; speechRecognizer.stopListening() } , tab_titles , tab_images ) },
                 floatingActionButton = {
                     if (idx==1) FloatingActionButton( onClick = { setViewNo(1) }, containerColor=MaterialTheme.colorScheme.secondary )
                     { Image(painterResource(R.drawable.camera_icon), "Camera button",
@@ -393,10 +568,18 @@ class MainActivity : ComponentActivity() {
                             )
                     ) {
                         if (idx == 0) {
-                            ShowReadingView(toggle, { toggle = !toggle },
+
+                            val microphonePermissionState: PermissionState = rememberPermissionState(android.Manifest.permission.RECORD_AUDIO)
+
+                            ShowReadingViewPage(
+                                hasPermission = microphonePermissionState.status.isGranted,
+                                onRequestPermission = microphonePermissionState::launchPermissionRequest,
+                                toggle, { toggle = !toggle },
                                 readTxt, currTxt,
                                 { readTxt = it }, { currTxt = it },
-                                { recomposeOuter() } )
+                                { recomposeOuter() } ,
+                            )
+
                         } else {
 
                             LazyColumn(
@@ -464,11 +647,14 @@ class MainActivity : ComponentActivity() {
                     { setViewNo(0) },
                     { readText = it },
                     { idx = 0 ; setViewNo(0) },
+                    setOnback
                 )
             }
 
             2 -> Scaffold( // SHOW HISTORY ITEM
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.background),
                 topBar = { DisplayTopBar("History item $histItemNum", { setViewNo(0) }) }
             ) {
                 Column(
@@ -525,9 +711,9 @@ class MainActivity : ComponentActivity() {
                     res.add(rawres[ridx].trim().lowercase())
                 }*/
 
-                /*System.out.print("Words possible: ")
+                System.out.print("Words possible: ")
                 for (r in res) System.out.print("'$r', ")
-                System.out.println()*/
+                System.out.println()
 
                 return res
             } else {
@@ -575,6 +761,43 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+
+    @Composable
+    fun ShowReadingViewPage(hasPermission: Boolean, onRequestPermission: () -> Unit,
+                            toggle:Boolean, toggleFunc:()->Unit,
+                            readTxt:String, currTxt: String,
+                            setReadTxt: (String)->Unit, setCurrTxt:(String)->Unit,
+                            recomposeOuter:()->Unit, ) {
+
+        if (hasPermission) {
+            ShowReadingView(toggle, toggleFunc,
+                readTxt, currTxt,
+                setReadTxt, setCurrTxt,
+                recomposeOuter )
+
+        } else {
+
+            // request permission - adapted from https://github.com/YanneckReiss/JetpackComposeMLKitTutorial
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(text = "Please grant the permission to use the microphone to use the the reading feature of this app.", style= LocalTextStyles.current.l)
+                Spacer(modifier = Modifier.height(16.dp))
+                Button(onClick = onRequestPermission) {
+                    Icon(imageVector = Icons.Default.Mic, contentDescription = "Microphone")
+                    Text(text = "Grant permission", style=LocalTextStyles.current.xl)
+                }
+            }
+
+        }
+
+    }
+
+
     @Composable
     fun ShowReadingView(recomposeBool:Boolean, recompose:()->Unit,
                         readTxt:String, currTxt: String,
@@ -601,7 +824,7 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier
                         //.fillMaxSize()
                         .fillMaxWidth()
-                        .weight(0.8f)
+                        .weight(0.88f)
                         //.heightIn(min=box_height.dp, max=box_height.dp)
                         .verticalScroll(rememberScrollState())
                     ,
@@ -627,7 +850,7 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier
                         .fillMaxWidth()
                         .wrapContentHeight()
-                        .weight(0.2f)
+                        .weight(0.12f)
                     ,
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
@@ -739,13 +962,31 @@ class MainActivity : ComponentActivity() {
                     //Toast.makeText(this, "SPEECH DETECTED SUCCESSFULLY!", Toast.LENGTH_SHORT).show()
                     //Log.d("SPEECH DETECTOR", "SPEECH DETECTED SUCCESSFULLY")
                 }
-            }, restart = { speechRecognizer.startListening(sttIntent) })
+            }, restart = {
+                if (should_listen) {
+                    speechRecognizer.startListening(sttIntent)
+                }
+            })
 
 
+        should_listen = false
         speechRecognizer.stopListening()
         speechRecognizer.startListening(sttIntent)
+        should_listen = true
 
     }
+
+    val happyQuotes = listOf("“Happiness in intelligent people is the rarest thing I know.” ― Ernest Hemingway, The Garden of Eden",
+            "“Attitude is a choice. Happiness is a choice. Optimism is a choice. Kindness is a choice. Giving is a choice. Respect is a choice. Whatever choice you make makes you. Choose wisely.” ― Roy T. Bennett, The Light in the Heart",
+            "“Whoever is happy will make others happy.” ― Anne Frank, The Diary of a Young Girl",
+            "“It isn't what you have or who you are or where you are or what you are doing that makes you happy or unhappy. It is what you think about it.” ― Dale Carnegie, How to Win Friends and Influence People",
+            "“It's been my experience that you can nearly always enjoy things if you make up your mind firmly that you will.” ― Lucy Maud Montgomery, Anne of Green Gables",
+            "“Happiness [is] only real when shared.” ― Jon Krakauer, Into the Wild",
+            "“I must learn to be content with being happier than I deserve.” ― Jane Austen, Pride and Prejudice",
+            "“Happiness is holding someone in your arms and knowing you hold the whole world.” ― Orhan Pamuk, Snow",
+            "“The problem with people is they forget that most of the time it's the small things that count.” ― Jennifer Niven, All the Bright Places",
+            "“Being happy isn't having everything in your life be perfect. Maybe it's about stringing together all the little things.” ― Ann Brashares, The Sisterhood of the Traveling Pants",
+        )
 
     @Composable
     fun ShowCompletedDialog(showCompletedDialog: Boolean, reset: ()->Unit) {
@@ -753,28 +994,93 @@ class MainActivity : ComponentActivity() {
 
             Toast.makeText(applicationContext, "SUCCESSFULLY FINISHED READING!", Toast.LENGTH_SHORT).show()
 
+            mediaPlayer = MediaPlayer.create(applicationContext, R.raw.crowd_cheer)
+            mediaPlayer.start()
+
             Dialog(onDismissRequest = {
+                mediaPlayer.stop()
                 reset()
             }) {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .wrapContentHeight()
-                        .border(
-                            width = 6.dp,
-                            color = Color(40, 40, 40),
-                            shape = RoundedCornerShape(16.dp)
-                        ),
-                    shape = RoundedCornerShape(16.dp),
+
+                Box(
+                    modifier = Modifier.fillMaxSize().noRippleClickable {
+                        mediaPlayer.stop()
+                        reset()
+                    }
                 ) {
+                    val dm: DisplayMetrics = MainActivity.context.resources.displayMetrics
 
-                    Text("YAY YOU COMPLETED HAHA", modifier = Modifier.padding(10.dp),
-                        style= LocalTextStyles.current.l)
-                    // TODO: better completion screen to give sense of accomplishment
+                    Box(
+                        modifier = Modifier.fillMaxSize().padding(top=COLLAPSED_TOP_BAR_HEIGHT).padding(top=32.dp),
+                        contentAlignment = Alignment.TopCenter
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().wrapContentHeight(),
+                            horizontalArrangement = Arrangement.SpaceEvenly,
+                        ) {
+                            Spacer(Modifier.weight(0.5f))
+                            Confetti(0f, -(dm.heightPixels*0.8).toFloat(), Modifier.weight(0.1f) )
+                            Spacer(Modifier.weight(0.5f))
+                            Confetti(0f, -(dm.heightPixels*0.8).toFloat(), Modifier.weight(0.1f) )
+                            Spacer(Modifier.weight(0.5f))
+                        }
 
+                    }
+
+                    Box(
+                        modifier = Modifier.fillMaxSize().padding(bottom=32.dp),
+                        contentAlignment = Alignment.BottomCenter
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().wrapContentHeight(),
+                            horizontalArrangement = Arrangement.SpaceEvenly,
+                        ) {
+                            Spacer(Modifier.weight(0.5f))
+                            Fountain(0f, 0f, Modifier.weight(0.1f) )
+                            Spacer(Modifier.weight(0.5f))
+                            Fountain(0f, 0f, Modifier.weight(0.1f) )
+                            Spacer(Modifier.weight(0.5f))
+                            Fountain(0f, 0f, Modifier.weight(0.1f) )
+                            Spacer(Modifier.weight(0.5f))
+                        }
+
+                    }
+                }
+
+
+                Row(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .wrapContentHeight()
+                            .border(
+                                width = 6.dp,
+                                color = Color(40, 40, 40),
+                                shape = RoundedCornerShape(16.dp)
+                            ),
+                        shape = RoundedCornerShape(16.dp),
+                    ) {
+
+                        Text("GOOD JOB!!", modifier = Modifier.padding(10.dp).fillMaxWidth(),
+                            textAlign = TextAlign.Center,
+                            style= LocalTextStyles.current.l)
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Text(happyQuotes[nextInt(0, happyQuotes.size)], modifier = Modifier.padding(16.dp),
+                            style = LocalTextStyles.current.s)
+
+                    }
                 }
 
             }
+
+
+
         }
     }
 
@@ -793,7 +1099,8 @@ class MainActivity : ComponentActivity() {
                 recomposeOuter()
             }
 
-            var amenuEnabled: Boolean by remember(
+
+            /*var amenuEnabled: Boolean by remember(
                 (getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager) // accessibilty manager
                 .getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK) // list of feedback
             ) {
@@ -803,7 +1110,7 @@ class MainActivity : ComponentActivity() {
                         .map{ it.resolveInfo.serviceInfo.packageName.equals("com.example.readr.accessibilitymenu") } // check if any are yes
                         .any() // boolean
                 )
-            }
+            }*/
 
             // tried power button, but requires rooted phone.
             /*Button({
@@ -910,7 +1217,11 @@ class MainActivity : ComponentActivity() {
 
 
                 Icon(painterResource(R.drawable.history_icon), "Text replacement history",
-                modifier = Modifier.size(32.dp), tint = Color.Blue)
+                modifier = Modifier.size(32.dp).forceRecomposeWith(recomposeBool)
+                    , tint =
+                    if (darkTheme) Color.Green
+                    else Color.Blue
+                )
 
 
             }
@@ -919,25 +1230,43 @@ class MainActivity : ComponentActivity() {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        var histItemCnt by remember { mutableStateOf(0) }
 
-        imgl.withNextImgNum { histItemCnt = it }
 
-        System.out.println("BOXING YES")
 
-        LazyVerticalGrid(
-            GridCells.Adaptive(minSize = HistoryItem.width),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-            modifier = Modifier.forceRecomposeWith(showConfirmationDialog)
-        ) {
+        // check network connection
 
-            items(histItemCnt) {
-                HistoryItem(histItemCnt-it-1).ShowView {
-                    histItemNum = histItemCnt-it-1
-                    showHistoryItemView()
-                } // so that highest num, latest, is shown first
+        val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val aninfo = cm.activeNetworkInfo
+        if ((aninfo == null) or (!(aninfo!!.isConnected))) {
+            // say that no network and return
+            Toast.makeText(this, "Failed to connect to internet. Please check your network connection!", Toast.LENGTH_SHORT).show()
+            Text("Not connected to internet. cannot load or view history. ", style= LocalTextStyles.current.m)
+        } else {
+
+            var histItemCnt by remember { mutableStateOf(0) }
+
+            imgl.withNextImgNum { histItemCnt = it }
+
+            System.out.println("BOXING YES")
+
+            LazyVerticalGrid(
+                GridCells.Adaptive(minSize = HistoryItem.width),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier.forceRecomposeWith(showConfirmationDialog)
+            ) {
+
+                items(histItemCnt) {
+                    HistoryItem(histItemCnt - it - 1).ShowView {
+                        histItemNum = histItemCnt - it - 1
+                        showHistoryItemView()
+                    } // so that highest num, latest, is shown first
+                }
             }
+
+
         }
+
+
 
 
         // show confirmation dialog if yes
@@ -955,10 +1284,11 @@ class MainActivity : ComponentActivity() {
                 },
                 confirmButton = {
                     Button({
-                        imgl.deleteAllImages()
-                        showConfirmationDialog = false
-                        recomposeOuter()
-                        recompose()
+                            imgl.deleteAllImages {
+                            showConfirmationDialog = false
+                            recomposeOuter()
+                            recompose()
+                        }
                     },
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color.Red,
@@ -1015,14 +1345,16 @@ class MainActivity : ComponentActivity() {
 
 
     @Composable
-    fun ShowCameraPage(hasPermission: Boolean, onRequestPermission: () -> Unit, backButtonFunc: ()->Unit,
-                       setReadText:(String)->Unit, goToReadTextScreen:()->Unit) {
+    fun ShowCameraPage(
+        hasPermission: Boolean, onRequestPermission: () -> Unit, backButtonFunc: () -> Unit,
+        setReadText: (String) -> Unit, goToReadTextScreen: () -> Unit, setOnback: ((()->Unit)?) -> Unit
+    ) {
         if (hasPermission) {
             CameraScreen(backButtonFunc, ::sendNotification,
-                setReadText, goToReadTextScreen, )
+                setReadText, goToReadTextScreen, setOnback)
         } else {
 
-            // request permission
+            // request permission - adapted from https://github.com/YanneckReiss/JetpackComposeMLKitTutorial
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -1054,6 +1386,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
+        should_listen = false
         speechRecognizer.stopListening()
     }
 

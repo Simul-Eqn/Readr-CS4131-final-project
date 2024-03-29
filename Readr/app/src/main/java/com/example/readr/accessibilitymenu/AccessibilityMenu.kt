@@ -10,6 +10,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.PixelFormat
+import android.net.ConnectivityManager
 import android.net.Uri
 import android.provider.Settings
 import android.util.DisplayMetrics

@@ -2,15 +2,7 @@
 
 package com.example.readr.camera
 
-import android.Manifest
-import android.accessibilityservice.AccessibilityService
-import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.content.Context
-import android.content.pm.PackageManager
 import android.graphics.Bitmap
-import android.graphics.Canvas
 import android.graphics.ImageFormat
 import android.graphics.Rect
 import android.graphics.YuvImage
@@ -19,9 +11,7 @@ import android.os.Handler
 import android.os.Looper
 import android.util.DisplayMetrics
 import android.util.Log
-import android.view.Display
 import android.view.View
-import android.widget.Toast
 import androidx.annotation.OptIn
 import androidx.camera.core.ExperimentalGetImage
 import androidx.camera.core.ImageAnalysis
@@ -34,11 +24,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -52,7 +42,6 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.app.ActivityCompat
 import androidx.core.graphics.applyCanvas
 import com.example.readr.MainActivity
 import com.example.readr.Variables
@@ -66,12 +55,12 @@ import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.ByteArrayOutputStream
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
+import kotlin.math.roundToInt
 import androidx.compose.material3.Text as ComposeText
 
 // first 2 conversion functions taken from
@@ -104,8 +93,10 @@ class TextRecognitionAnalyzer(
     val view: @Composable()(PaddingValues)->Unit,
     private val setView: (@Composable()(PaddingValues)->Unit) -> Unit,
     val offsetY: Float,
-    var addOffsetY: Float, // was already added in previou step, so don't add again to offsetY
-    val setAddOffsetY:(Float)->Unit,
+    //var addOffsetX: Float,
+    //val setAddOffsetX:(Float)->Unit,
+    //var addOffsetY: Float,
+    //val setAddOffsetY:(Float)->Unit,
     val frozen:Int,
     val setFrozen:(Int)->Unit,
     val sendNotification: (String, String) -> Unit,
@@ -113,7 +104,7 @@ class TextRecognitionAnalyzer(
 ) : ImageAnalysis.Analyzer {
 
     companion object {
-        const val THROTTLE_TIMEOUT_MS = 1_000L
+        const val THROTTLE_TIMEOUT_MS = 1000L
 
         private fun getScreenShot(view: View, withBitmap:(Bitmap)->Unit) {
             /*val returnedBitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
@@ -133,6 +124,9 @@ class TextRecognitionAnalyzer(
                 withBitmap(bmp)
             }, 1000)
         }
+
+        var addOffsetX = 0f
+        var addOffsetY = 0f
     }
 
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
@@ -151,12 +145,14 @@ class TextRecognitionAnalyzer(
         scope.launch {
 
             val mediaImage: Image = imageProxy.image ?: run { imageProxy.close(); return@launch }
-            val inputImage: InputImage = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
+            val inputImage: InputImage = InputImage.fromMediaImage(mediaImage, 90)//imageProxy.imageInfo.rotationDegrees)
+
+            val imgWidth = mediaImage.width
 
             if (frozen == 1) {
                 // save image to firebase as init image
 
-                var data = NV21toJPEG(
+                val data = NV21toJPEG(
                     YUV_420_888toNV21(mediaImage),
                     mediaImage.width, mediaImage.height,
                 )
@@ -210,14 +206,22 @@ class TextRecognitionAnalyzer(
                                 val dm: DisplayMetrics =
                                     MainActivity.context.resources.displayMetrics
 
-                                fun pxToDP(px: Int): Int {
-                                    return Math.round(px / dm.density)
+                                fun pxToDP(px: Double): Int {
+                                    return (px / (dm.densityDpi / DisplayMetrics.DENSITY_DEFAULT)).roundToInt()
                                 }
+                                fun pxToDP(px: Int): Int {
+                                    return (px.toDouble() / (dm.densityDpi / DisplayMetrics.DENSITY_DEFAULT)).roundToInt()
+                                }
+
+
+                                var scale = dm.widthPixels.toDouble() / imgWidth.toDouble()
+                                scale = scale * 1.35
+                                System.out.println("SCALE: $scale")
 
                                 //val offsetYpx = mediaImage.height - dm.heightPixels // this is in px
                                 //val offsetY = pxToDP(offsetYpx) // MUST CONVERT TO DP
 
-                                System.out.println("OFFSETY: ${offsetY + addOffsetY}")
+                                //System.out.println("OFFSETY: ${offsetY + addOffsetY}")
 
 
                                 // show compose stuff
@@ -237,7 +241,7 @@ class TextRecognitionAnalyzer(
                                 val width =
                                     pxToDP((textBlock.boundingBox!!.right - textBlock.boundingBox!!.left)).dp*/
 
-                                        if (pxToDP(textBlock.boundingBox!!.top) > offsetY + addOffsetY) {
+                                        if (pxToDP(textBlock.boundingBox!!.top*scale) > offsetY + addOffsetY) {
 
                                             Button(
                                                 {
@@ -245,8 +249,8 @@ class TextRecognitionAnalyzer(
                                                 },
                                                 modifier = Modifier
                                                     .offset(
-                                                        pxToDP(textBlock.boundingBox!!.left).dp,
-                                                        (pxToDP(textBlock.boundingBox!!.top) - (offsetY + addOffsetY)).dp
+                                                        (pxToDP(textBlock.boundingBox!!.left*scale) + addOffsetX).dp,
+                                                        (pxToDP(textBlock.boundingBox!!.top*scale) - (offsetY + addOffsetY)).dp
                                                     )
                                                     /*.sizeIn(
                                             minHeight = height,
@@ -260,7 +264,7 @@ class TextRecognitionAnalyzer(
                                                 shape = RectangleShape,
                                                 contentPadding = PaddingValues(0.dp),
                                                 colors = ButtonDefaults.buttonColors(
-                                                    containerColor = Color.White
+                                                    containerColor = MaterialTheme.colorScheme.background
                                                 ),
                                             ) {
                                                 ComposeText(
@@ -293,6 +297,8 @@ class TextRecognitionAnalyzer(
                                     }
                                 }
 
+
+                                // vertical adjustment slider - addOffsetY
                                 Box(
                                     contentAlignment = Alignment.CenterEnd,
                                     modifier = Modifier.fillMaxSize().padding(it),
@@ -301,6 +307,7 @@ class TextRecognitionAnalyzer(
                                         modifier = Modifier.wrapContentSize(),
                                         //.background(Color.Green)
                                     ) {
+                                        val h = pxToDP(dm.heightPixels) - offsetY - 32
                                         Slider(
                                             modifier = Modifier
                                                 .graphicsLayer {
@@ -322,11 +329,36 @@ class TextRecognitionAnalyzer(
                                                 },
                                             value = addOffsetY,
                                             onValueChange = {
-                                                setAddOffsetY(it)
                                                 addOffsetY = it
                                             },
-                                            valueRange = -600f..600f,
-                                            steps = 79,
+                                            //valueRange = -600f..600f,
+                                            //steps = 199,
+                                            valueRange = -(h/2) .. (h/2),
+                                            steps = 249,
+                                        )
+                                    }
+                                }
+
+
+                                // horizontal adjustment slider - addOffsetX
+                                Box(
+                                    contentAlignment = Alignment.BottomCenter,
+                                    modifier = Modifier.fillMaxSize().padding(it),
+                                ) {
+                                    val w = (pxToDP(dm.widthPixels) - 32).toFloat()
+                                    Box(
+                                        modifier = Modifier.wrapContentSize(),
+                                        //.background(Color.Green)
+                                    ) {
+                                        Slider(
+                                            value = addOffsetX,
+                                            onValueChange = {
+                                                addOffsetX = it
+                                            },
+                                            //valueRange = -400f..400f,
+                                            //steps = 199,
+                                            valueRange = -(w/2) .. (w/2),
+                                            steps = 249
                                         )
                                     }
                                 }
@@ -358,13 +390,18 @@ class TextRecognitionAnalyzer(
                                         imgl.saveImage(finalBitmap, "image_${it}_final.png")
                                     }
 
-                                    // show notification
-                                    sendNotification(
-                                        "Camera Usage Saved!",
-                                        "Used Readr Camera Service. Return to app history page to view or clear usage history. "
-                                    )
 
-                                    notifAlready = true
+                                    if (!notifAlready) { // check again in case of lag
+
+                                        // show notification
+                                        sendNotification(
+                                            "Camera Usage Saved!",
+                                            "Used Readr Camera Service. Return to app history page to view or clear usage history. "
+                                        )
+
+                                        notifAlready = true
+
+                                    }
 
                                 }
 
@@ -408,8 +445,8 @@ class TextRecognitionAnalyzer(
 
             }
 
-            if (frozen == 0)
-                delay(THROTTLE_TIMEOUT_MS)
+
+            delay(THROTTLE_TIMEOUT_MS)
 
 
         }.invokeOnCompletion { exception ->

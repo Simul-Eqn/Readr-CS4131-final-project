@@ -82,12 +82,13 @@ class ImageLoader {
     }
 
 
-    fun deleteAllImages() {
+    fun deleteAllImages(onComplete:()->Unit={}) {
         storageRef.listAll().addOnSuccessListener {
             for (item in it.items) {
                 item.delete()
             }
         }
+        onComplete()
     }
 
 
