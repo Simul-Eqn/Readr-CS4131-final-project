@@ -1,6 +1,7 @@
 package com.example.readr
 
 
+import android.annotation.SuppressLint
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.runtime.remember
@@ -14,4 +15,11 @@ inline fun Modifier.noRippleClickable(crossinline onClick: () -> Unit): Modifier
     ) {
         onClick()
     }
+}
+
+
+
+@SuppressLint("UnnecessaryComposedModifier")
+fun Modifier.forceRecomposeWith(useless:Any?) : Modifier = composed {
+    this
 }

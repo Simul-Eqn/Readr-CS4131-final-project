@@ -20,6 +20,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.readr.ui.theme.LocalTextSizes
+import com.example.readr.ui.theme.LocalTextStyles
 
 @Composable
 fun BottomBar(idx:Int, setIdx:(Int)->Unit, tab_titles:List<String>, tab_images:List<Any>) {
@@ -71,7 +72,7 @@ fun BottomBar(idx:Int, setIdx:(Int)->Unit, tab_titles:List<String>, tab_images:L
                         text = {
                             Text(
                                 name,
-                                fontSize = LocalTextSizes.current.m,
+                                style = LocalTextStyles.current.m,
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis,
                                 textAlign = TextAlign.Center

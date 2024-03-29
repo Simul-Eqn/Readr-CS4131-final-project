@@ -6,71 +6,66 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import com.example.readr.Variables
 import com.example.readr.ui.theme.LocalTextStyles
+import com.example.readr.forceRecomposeWith
+import kotlin.math.roundToInt
 
 @Composable
-fun ChangeReplacedTextSizeSlider(onChange: (Int)->Unit) {
-    var sliderPosition by remember(Variables.overlayTextSize) { mutableFloatStateOf(Variables.overlayTextSize.toFloat()) }
+fun ChangeReplacedTextSizeSlider(overlayTextSize:Float,
+                                 textScale:Float=Variables.textScale, // this is to allow recomposition
+                                 setOverlayTextSize:(Float)->Unit) {
+
     Column {
 
         Text(buildAnnotatedString {
             withStyle(SpanStyle(background = Color.White)) {
-                append("Overlay text size: $sliderPosition")
+                append("Overlay text size: $overlayTextSize")
             }
-        }, style=LocalTextStyles.current.l)
+        }, style=LocalTextStyles.current.l, modifier = Modifier.forceRecomposeWith(textScale))
 
         Slider(
-            value = sliderPosition,
-            onValueChange = {
-                val new = Math.round(it)
-                Variables.overlayTextSize = new
-                sliderPosition = new.toFloat()
-                onChange(new)
-                            },
+            value = overlayTextSize,
+            onValueChange = { setOverlayTextSize(Math.round(it).toFloat()) },
             colors = SliderDefaults.colors(
                 thumbColor = MaterialTheme.colorScheme.secondary,
                 activeTrackColor = MaterialTheme.colorScheme.secondary,
                 inactiveTrackColor = MaterialTheme.colorScheme.secondaryContainer,
             ),
-            steps = 26,
-            valueRange = 10f..35f
+            steps = 24,
+            valueRange = 10f..35f,
+            modifier = Modifier.forceRecomposeWith(textScale)
         )
     }
 }
 
 @Composable
-fun ChangeTextScaleSlider(onChange: (Float)->Unit) {
-    var sliderPosition by remember(Variables.textScale) { mutableFloatStateOf(Variables.textScale) }
+fun ChangeTextScaleSlider(textScale:Float, setTextScale: (Float)->Unit) {
+
     Column {
 
         Text(buildAnnotatedString {
             withStyle(SpanStyle(background = Color.White)) {
-                append("In-app text scale: $sliderPosition")
+                append("In-app text scale: $textScale")
             }
         }, style= LocalTextStyles.current.l)
 
         Slider(
-            value = sliderPosition,
+            value = textScale,
             onValueChange = {
-                Variables.textScale = it
-                sliderPosition = it
-                onChange(it)
+                setTextScale((it * 10).roundToInt().toFloat()/10.0f)
             },
             colors = SliderDefaults.colors(
                 thumbColor = MaterialTheme.colorScheme.secondary,
                 activeTrackColor = MaterialTheme.colorScheme.secondary,
                 inactiveTrackColor = MaterialTheme.colorScheme.secondaryContainer,
             ),
-            steps = 41,
+            steps = 39,
             valueRange = 0.5f..2.5f
         )
     }

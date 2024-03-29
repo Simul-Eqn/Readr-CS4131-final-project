@@ -15,6 +15,7 @@ import android.graphics.ImageFormat
 import android.graphics.Rect
 import android.graphics.YuvImage
 import android.media.Image
+import android.os.Handler
 import android.os.Looper
 import android.util.DisplayMetrics
 import android.util.Log
@@ -36,6 +37,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Slider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -51,6 +53,7 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.app.ActivityCompat
+import androidx.core.graphics.applyCanvas
 import com.example.readr.MainActivity
 import com.example.readr.Variables
 import com.example.readr.data.ImageLoader
@@ -63,6 +66,7 @@ import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.ByteArrayOutputStream
@@ -105,19 +109,29 @@ class TextRecognitionAnalyzer(
     val frozen:Int,
     val setFrozen:(Int)->Unit,
     val sendNotification: (String, String) -> Unit,
+    val setText: (String)->Unit,
 ) : ImageAnalysis.Analyzer {
 
     companion object {
         const val THROTTLE_TIMEOUT_MS = 1_000L
 
-        private fun getScreenShot(view: View): Bitmap {
-            val returnedBitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
+        private fun getScreenShot(view: View, withBitmap:(Bitmap)->Unit) {
+            /*val returnedBitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(returnedBitmap)
             val bgDrawable = view.background
             if (bgDrawable != null) bgDrawable.draw(canvas)
             else canvas.drawColor(android.graphics.Color.WHITE)
             view.draw(canvas)
-            return returnedBitmap
+            return returnedBitmap*/
+
+            val handler = Handler(Looper.getMainLooper())
+            handler.postDelayed(Runnable {
+                val bmp = Bitmap.createBitmap(view.width, view.height,
+                    Bitmap.Config.ARGB_8888).applyCanvas {
+                    view.draw(this)
+                }
+                withBitmap(bmp)
+            }, 1000)
         }
     }
 
@@ -127,6 +141,9 @@ class TextRecognitionAnalyzer(
     val imgl = ImageLoader()
 
 
+
+
+    var notifAlready = false
 
 
     @OptIn(ExperimentalGetImage::class)
@@ -152,6 +169,7 @@ class TextRecognitionAnalyzer(
             }
 
             suspendCoroutine { continuation ->
+
                 textRecognizer.process(inputImage)
                     .addOnSuccessListener { visionText: Text ->
 
@@ -163,142 +181,158 @@ class TextRecognitionAnalyzer(
                             onDetectedTextUpdated(detectedText)
                         }*/
 
-                        setView {
+                        if (!notifAlready) {
 
-                            System.out.println("SUCCESSFULLY DETECED!! NUMBER OF TEXT BLOCKS: ${visionText.textBlocks.size}")
+                            setView {
 
-                            for (tbidx in visionText.textBlocks.indices) {
-                                //intent.putExtra("textblock_text_$tbidx", it.textBlocks[tbidx].text)
-                                //intent.putExtra("textblock_bbox_$tbidx", it.textBlocks[tbidx].boundingBox)
+                                System.out.println("SUCCESSFULLY DETECED!! NUMBER OF TEXT BLOCKS: ${visionText.textBlocks.size}")
 
-                                System.out.println(
-                                    "TEXTBLOCK TEXT: ${visionText.textBlocks[tbidx].text} " +
-                                            "AT POSITIONS ${visionText.textBlocks[tbidx].boundingBox!!.left}, " +
-                                            "${visionText.textBlocks[tbidx].boundingBox!!.top}, ${visionText.textBlocks[tbidx].boundingBox!!.right}" +
-                                            " ${visionText.textBlocks[tbidx].boundingBox!!.bottom}"
-                                )
-                            }
+                                var tempText = ""
 
-                            //startForegroundService(intent)
+                                for (tbidx in visionText.textBlocks.indices) {
 
+                                    System.out.println(
+                                        "TEXTBLOCK TEXT: ${visionText.textBlocks[tbidx].text} " +
+                                                "AT POSITIONS ${visionText.textBlocks[tbidx].boundingBox!!.left}, " +
+                                                "${visionText.textBlocks[tbidx].boundingBox!!.top}, ${visionText.textBlocks[tbidx].boundingBox!!.right}" +
+                                                " ${visionText.textBlocks[tbidx].boundingBox!!.bottom}"
+                                    )
 
-                            // display them all
-                            val dm: DisplayMetrics = MainActivity.context.resources.displayMetrics
+                                    tempText += visionText.textBlocks[tbidx].text + "\n\n"
+                                }
 
-                            fun pxToDP(px: Int): Int {
-                                return Math.round(px / dm.density)
-                            }
+                                setText(tempText)
 
-                            //val offsetYpx = mediaImage.height - dm.heightPixels // this is in px
-                            //val offsetY = pxToDP(offsetYpx) // MUST CONVERT TO DP
-
-                            System.out.println("OFFSETY: ${offsetY+addOffsetY}")
+                                //startForegroundService(intent)
 
 
-                            // show compose stuff
+                                // display them all
+                                val dm: DisplayMetrics =
+                                    MainActivity.context.resources.displayMetrics
 
-                            var fontSize by remember(Variables.overlayTextSize) {
-                                mutableIntStateOf(
-                                    Variables.overlayTextSize
-                                )
-                            }
+                                fun pxToDP(px: Int): Int {
+                                    return Math.round(px / dm.density)
+                                }
 
-                            // get all the items and save
-                            Box(modifier = Modifier.fillMaxSize().padding(it)) {
+                                //val offsetYpx = mediaImage.height - dm.heightPixels // this is in px
+                                //val offsetY = pxToDP(offsetYpx) // MUST CONVERT TO DP
 
-                                for (textBlock in visionText.textBlocks) {
-                                    /*val height =
+                                System.out.println("OFFSETY: ${offsetY + addOffsetY}")
+
+
+                                // show compose stuff
+
+                                var fontSize by remember(Variables.overlayTextSize) {
+                                    mutableFloatStateOf(
+                                        Variables.overlayTextSize
+                                    )
+                                }
+
+                                // get all the items and save
+                                Box(modifier = Modifier.fillMaxSize().padding(it)) {
+
+                                    for (textBlock in visionText.textBlocks) {
+                                        /*val height =
                                     pxToDP((textBlock.boundingBox!!.bottom - textBlock.boundingBox!!.top)).dp
                                 val width =
                                     pxToDP((textBlock.boundingBox!!.right - textBlock.boundingBox!!.left)).dp*/
 
-                                    if (pxToDP(textBlock.boundingBox!!.top) > offsetY+addOffsetY) {
+                                        if (pxToDP(textBlock.boundingBox!!.top) > offsetY + addOffsetY) {
 
-                                        Button(
-                                            {
-                                                // SHOW POPUP OF TEXT
-                                            },
-                                            modifier = Modifier
-                                                .offset(
-                                                    pxToDP(textBlock.boundingBox!!.left).dp,
-                                                    (pxToDP(textBlock.boundingBox!!.top) - (offsetY + addOffsetY)).dp
-                                                )
-                                                /*.sizeIn(
+                                            Button(
+                                                {
+                                                    // SHOW POPUP OF TEXT
+                                                },
+                                                modifier = Modifier
+                                                    .offset(
+                                                        pxToDP(textBlock.boundingBox!!.left).dp,
+                                                        (pxToDP(textBlock.boundingBox!!.top) - (offsetY + addOffsetY)).dp
+                                                    )
+                                                    /*.sizeIn(
                                             minHeight = height,
                                             maxHeight = height,
                                             minWidth = width,
                                             maxWidth = width
                                         )*/
-                                                //.height(height)
-                                                //.width(width)
-                                                .padding(0.dp),
-                                            shape = RectangleShape,
-                                            contentPadding = PaddingValues(0.dp),
-                                            colors = ButtonDefaults.buttonColors(
-                                                containerColor = Color.White
-                                            ),
-                                        ) {
-                                            ComposeText(
-                                                textBlock.text,
-                                                modifier = Modifier.padding(0.dp),
-                                                style = TextStyle(
-                                                    color = Color.Black,
-                                                    fontSize = fontSize.sp,
-                                                    fontFamily = Variables.overlayFontFamily
+                                                    //.height(height)
+                                                    //.width(width)
+                                                    .padding(0.dp),
+                                                shape = RectangleShape,
+                                                contentPadding = PaddingValues(0.dp),
+                                                colors = ButtonDefaults.buttonColors(
+                                                    containerColor = Color.White
+                                                ),
+                                            ) {
+                                                ComposeText(
+                                                    textBlock.text,
+                                                    modifier = Modifier.padding(0.dp),
+                                                    style = TextStyle(
+                                                        color = Color.Black,
+                                                        fontSize = fontSize.sp,
+                                                        fontFamily = Variables.overlayFontFamily
+                                                    )
                                                 )
-                                            )
+                                            }
+
+                                            //System.out.println("DISPLAYED TEXT: ${textBlock.text} AT POSITIONS ${textBlock.boundingBox!!.left}, ${textBlock.boundingBox!!.top}, ${textBlock.boundingBox!!.right} ${textBlock.boundingBox!!.bottom}")
+
+                                        } else {
+                                            //System.out.println("CHOSE NOT TO DISPLAY TEXT: ${textBlock.text}")
                                         }
+                                    }
 
-                                        //System.out.println("DISPLAYED TEXT: ${textBlock.text} AT POSITIONS ${textBlock.boundingBox!!.left}, ${textBlock.boundingBox!!.top}, ${textBlock.boundingBox!!.right} ${textBlock.boundingBox!!.bottom}")
+                                }
 
-                                    } else {
-                                        //System.out.println("CHOSE NOT TO DISPLAY TEXT: ${textBlock.text}")
+                                Box(
+                                    modifier = Modifier.fillMaxSize().padding(it),
+                                    contentAlignment = Alignment.TopCenter
+                                ) {
+                                    ChangeReplacedTextSizeSlider(fontSize) {
+                                        fontSize = it
+                                        Variables.overlayTextSize = it
                                     }
                                 }
 
-                            }
-
-                            Box(modifier = Modifier.fillMaxSize().padding(it), contentAlignment = Alignment.TopCenter) { ChangeReplacedTextSizeSlider({ fontSize = it })  }
-
-                            Box(
-                                contentAlignment = Alignment.CenterEnd,
-                                modifier = Modifier.fillMaxSize().padding(it),
-                            ) {
                                 Box(
-                                    modifier = Modifier.wrapContentSize(),
-                                    //.background(Color.Green)
+                                    contentAlignment = Alignment.CenterEnd,
+                                    modifier = Modifier.fillMaxSize().padding(it),
                                 ) {
-                                    Slider(
-                                        modifier = Modifier
-                                            .graphicsLayer {
-                                                rotationZ = 270f
-                                                transformOrigin = TransformOrigin(0f, 0f)
-                                            }
-                                            .layout { measurable, constraints ->
-                                                val placeable = measurable.measure(
-                                                    Constraints(
-                                                        minWidth = constraints.minHeight,
-                                                        maxWidth = constraints.maxHeight,
-                                                        minHeight = constraints.minWidth,
-                                                        maxHeight = constraints.maxHeight,
-                                                    )
-                                                )
-                                                layout(placeable.height, placeable.width) {
-                                                    placeable.place(-placeable.width, 0)
+                                    Box(
+                                        modifier = Modifier.wrapContentSize(),
+                                        //.background(Color.Green)
+                                    ) {
+                                        Slider(
+                                            modifier = Modifier
+                                                .graphicsLayer {
+                                                    rotationZ = 270f
+                                                    transformOrigin = TransformOrigin(0f, 0f)
                                                 }
+                                                .layout { measurable, constraints ->
+                                                    val placeable = measurable.measure(
+                                                        Constraints(
+                                                            minWidth = constraints.minHeight,
+                                                            maxWidth = constraints.maxHeight,
+                                                            minHeight = constraints.minWidth,
+                                                            maxHeight = constraints.maxHeight,
+                                                        )
+                                                    )
+                                                    layout(placeable.height, placeable.width) {
+                                                        placeable.place(-placeable.width, 0)
+                                                    }
+                                                },
+                                            value = addOffsetY,
+                                            onValueChange = {
+                                                setAddOffsetY(it)
+                                                addOffsetY = it
                                             },
-                                        value = addOffsetY,
-                                        onValueChange = {
-                                            setAddOffsetY(it)
-                                            addOffsetY = it
-                                        },
-                                        valueRange = -600f..600f,
-                                        steps = 81,
-                                    )
+                                            valueRange = -600f..600f,
+                                            steps = 79,
+                                        )
+                                    }
                                 }
+
+
                             }
-
-
 
                         }
 
@@ -309,26 +343,31 @@ class TextRecognitionAnalyzer(
                         System.out.println("RECOGNITION ANALYZER FROZEN: $frozen")
 
 
-                        if (frozen == 2) {
+                        if ((frozen == 2) and (!notifAlready)) {
 
 
                             // SCREENSHOT AGAIN TO TRY TO SAVE
                             try {
 
-                                // get bitmap of screen
-                                val finalBitmap =
-                                    TextRecognitionAnalyzer.getScreenShot(MainActivity.window.decorView.rootView)
+                                // OLD: get bitmap of screen
+                                //val finalBitmap = TextRecognitionAnalyzer.getScreenShot(MainActivity.window.decorView.rootView)
 
-                                // SAVE AS FINAL
-                                imgl.withNextImgNum {
-                                    imgl.saveImage(finalBitmap, "image_${it}_final.png")
+                                getScreenShot(MainActivity.window.decorView.rootView) { finalBitmap:Bitmap ->
+                                    // SAVE AS FINAL
+                                    imgl.withNextImgNum {
+                                        imgl.saveImage(finalBitmap, "image_${it}_final.png")
+                                    }
+
+                                    // show notification
+                                    sendNotification(
+                                        "Camera Usage Saved!",
+                                        "Used Readr Camera Service. Return to app history page to view or clear usage history. "
+                                    )
+
+                                    notifAlready = true
+
                                 }
 
-                                // show notification
-                                sendNotification(
-                                    "Camera Usage Saved!",
-                                    "Used Readr Camera Service. Return to app history page to view or clear usage history. "
-                                )
 
                             } catch (e: Exception) {
 
@@ -369,7 +408,8 @@ class TextRecognitionAnalyzer(
 
             }
 
-            delay(THROTTLE_TIMEOUT_MS)
+            if (frozen == 0)
+                delay(THROTTLE_TIMEOUT_MS)
 
 
         }.invokeOnCompletion { exception ->

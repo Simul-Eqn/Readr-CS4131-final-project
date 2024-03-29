@@ -34,6 +34,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -186,7 +187,7 @@ class AccessibilityMenu : AccessibilityService() {
                                 setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
                                 setContent {
 
-                                    var fontSize by remember(Variables.overlayTextSize) { mutableIntStateOf(Variables.overlayTextSize) }
+                                    var fontSize by remember(Variables.overlayTextSize) { mutableFloatStateOf(Variables.overlayTextSize) }
 
                                     // get all the items and save
                                     Box(modifier = Modifier.fillMaxSize()) {
@@ -242,7 +243,10 @@ class AccessibilityMenu : AccessibilityService() {
                                         }
 
 
-                                        ChangeReplacedTextSizeSlider({ fontSize = it })
+                                        ChangeReplacedTextSizeSlider(fontSize) {
+                                            fontSize = it
+                                            Variables.overlayTextSize = it
+                                        }
 
                                     }
 

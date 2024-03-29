@@ -19,6 +19,7 @@ import android.speech.tts.TextToSpeech
 import android.speech.tts.Voice
 import android.util.Log
 import android.view.Window
+import android.view.WindowManager
 import android.view.accessibility.AccessibilityManager
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -42,7 +43,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.Camera
@@ -59,6 +62,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -88,6 +92,7 @@ import com.example.readr.presentation.onscaffold.DisplayTopBar
 import com.example.readr.presentation.onscaffold.WrapInColllapsedTopBar
 import com.example.readr.presentation.themeswitcher.ThemeSwitcher
 import com.example.readr.ui.theme.LocalMoreColors
+import com.example.readr.ui.theme.LocalReplacedTextStyles
 import com.example.readr.ui.theme.LocalSpacings
 import com.example.readr.ui.theme.LocalTextStyles
 import com.example.readr.ui.theme.ReadrTheme
@@ -189,24 +194,22 @@ class MainActivity : ComponentActivity() {
     }
 
     fun initSTT(onBeginSpeech:()->Unit, onResults: (ArrayList<String>?) -> Unit,
-                onPartialResults: (ArrayList<String>?) -> Unit ): Intent {
+                onPartialResults: (ArrayList<String>?) -> Unit ,
+                restart: ()->Unit ): Intent {
         val sttIntent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
         sttIntent.putExtra(
             RecognizerIntent.EXTRA_LANGUAGE_MODEL,
             RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
         sttIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
-        sttIntent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+        sttIntent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true) // yes
 
-        speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this)
         speechRecognizer.setRecognitionListener(object : RecognitionListener {
-            override fun onReadyForSpeech(bundle: Bundle) {}
+            override fun onReadyForSpeech(bundle: Bundle) { restart() }
             override fun onBeginningOfSpeech() { onBeginSpeech() }
             override fun onRmsChanged(v: Float) {}
             override fun onBufferReceived(bytes: ByteArray) {}
-            override fun onEndOfSpeech() {
-                speechRecognizer.startListening(sttIntent) // start again if stop
-            }
-            override fun onError(i: Int) {}
+            override fun onEndOfSpeech() { restart() }
+            override fun onError(i: Int) { restart() }
             override fun onResults(bundle: Bundle) {
                 val data = bundle.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                 onResults(data)
@@ -270,6 +273,9 @@ class MainActivity : ComponentActivity() {
 
         initOnScaffolds()
 
+        // stt
+        speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this)
+
         setContent {
 
             val cursor = contentResolver.query(Uri.parse(PersistentStorage.URL), null, null, null, null)
@@ -281,10 +287,19 @@ class MainActivity : ComponentActivity() {
             var localDarkTheme by remember { mutableStateOf(false) }
             var viewNo by remember(outerNavPageNo) { mutableIntStateOf(outerNavPageNo) }
 
+
+
+            var recomposeBool by remember { mutableStateOf(true) }
+            var firstOne by remember { mutableStateOf(true) }
+
+            fun recomposeOuter() { recomposeBool = !recomposeBool ; firstOne = false }
+
+
             // set text size
             fh = FirebaseHandler()
             fh.loadTextSizes {
                 Variables.overlayTextSize = it
+                recomposeOuter()
             }
 
 
@@ -310,13 +325,10 @@ class MainActivity : ComponentActivity() {
 
             ReadrTheme(darkTheme = darkTheme) {
 
-                var recomposeBool by remember { mutableStateOf(true) }
-
                 when (finishedOnboarding) {
                     true -> ShowView(viewNo, {
                         outerNavPageNo = it
-                        viewNo = it
-                                             }, recomposeBool, { recomposeBool = !recomposeBool })
+                        viewNo = it }, recomposeBool, ::recomposeOuter, firstOne)
 
                     false -> OnBoardingScreen {
                         finishedOnboarding = true
@@ -336,7 +348,15 @@ class MainActivity : ComponentActivity() {
 
     @OptIn(ExperimentalPermissionsApi::class)
     @Composable
-    fun ShowView(viewNo:Int, setViewNo:(Int)->Unit, recomposeBool: Boolean, recomposeOuter:()->Unit) {
+    fun ShowView(viewNo:Int, setViewNo:(Int)->Unit, recomposeBool: Boolean, recomposeOuter:()->Unit, firstOne:Boolean=false) {
+
+        if (!firstOne) {
+            LocalReplacedTextStyles.current.setOverlayTextSize(Variables.overlayTextSize)
+            fh.saveOverlayTextSize()
+        }
+
+        LocalTextStyles.current.setTextScale(Variables.textScale) // TODO do we save this to firebase?
+
 
         var idx by remember { mutableIntStateOf(innerNavTabNo) }
         fun setIdx(newIdx:Int) {
@@ -349,7 +369,7 @@ class MainActivity : ComponentActivity() {
         when (viewNo) {
             0 -> Scaffold(
                 modifier = Modifier.fillMaxSize(),
-                bottomBar = { BottomBar( idx, { setIdx(it) } , tab_titles , tab_images ) },
+                bottomBar = { BottomBar( idx, { setIdx(it) ; speechRecognizer.stopListening() } , tab_titles , tab_images ) },
                 floatingActionButton = {
                     if (idx==1) FloatingActionButton( onClick = { setViewNo(1) }, containerColor=MaterialTheme.colorScheme.secondary )
                     { Image(painterResource(R.drawable.camera_icon), "Camera button",
@@ -372,36 +392,49 @@ class MainActivity : ComponentActivity() {
                             end = 16.dp,
                             )
                     ) {
+                        if (idx == 0) {
+                            ShowReadingView(toggle, { toggle = !toggle },
+                                readTxt, currTxt,
+                                { readTxt = it }, { currTxt = it },
+                                { recomposeOuter() } )
+                        } else {
 
-                        LazyColumn(
-                            state = listState,
-                        ) {
-                            /* if (outerNavPageNo == 0 && innerNavTabNo == 1) {
+                            LazyColumn(
+                                state = listState,
+                            ) {
+                                /* if (outerNavPageNo == 0 && innerNavTabNo == 1) {
                                 item() {
                                     ExpandedTopBar(topBarImg, topBarTitle)
                                 }
                             } */ // no more expanded top bar
 
 
-                            items(1) {
-                                when (idx) {
-                                    0 -> ShowReadingView(toggle, { toggle = !toggle },
-                                        readTxt, currTxt,
-                                        { readTxt = it }, { currTxt = it },
-                                        { recomposeOuter() } )
-                                    1 -> ShowDashboard(toggle, { toggle = !toggle }, { recomposeOuter() })
-                                    2 -> ShowSettings(toggle, { toggle = !toggle }, { recomposeOuter() })
+                                items(1) {
+                                    when (idx) {
+                                        //0 ->
+                                        1 -> ShowDashboard(
+                                            toggle,
+                                            { toggle = !toggle },
+                                            { recomposeOuter() })
+
+                                        2 -> ShowSettings(
+                                            toggle,
+                                            { toggle = !toggle },
+                                            { recomposeOuter() },
+                                        )
+                                    }
                                 }
+
+
                             }
 
+                            if (idx == 1) {
+                                ShowHistory(toggle,
+                                    { toggle = !toggle },
+                                    { recomposeOuter() },
+                                    { setViewNo(2) })
+                            }
 
-                        }
-
-                        if (idx == 1) {
-                            ShowHistory( toggle,
-                                { toggle = !toggle },
-                                { recomposeOuter() },
-                                { setViewNo(2) })
                         }
                     }
 
@@ -429,6 +462,8 @@ class MainActivity : ComponentActivity() {
                     hasPermission = cameraPermissionState.status.isGranted,
                     onRequestPermission = cameraPermissionState::launchPermissionRequest,
                     { setViewNo(0) },
+                    { readText = it },
+                    { idx = 0 ; setViewNo(0) },
                 )
             }
 
@@ -447,20 +482,29 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    var readText = "text to read. Please work haha. "
+
+
+
+    // for reading view stuff
+    var readText = "text to read. \nPlease work haha. \n\n\nhey (hey) wow. iweshdkf."
+
+    val wordSplitterRegex = Regex("""[\s\n]+""")
+    val alphanumericRegex = Regex("""[a-zA-Z0-9]+""")
+    val nonAlphanumericRegex = Regex("""[^a-zA-Z0-9]""")
 
     fun getCurrWord(readTxt:String, currTxt:String): String {
-        System.out.println("CHECKING CURR WORD")
-        System.out.println("readTxt: $readTxt")
-        System.out.println("currTxt: $currTxt")
+        //System.out.println("CHECKING CURR WORD")
+        //System.out.println("readTxt: $readTxt")
+        //System.out.println("currTxt: $currTxt")
         if (currTxt.length >= readTxt.length) {
             return ""
         } else {
+            //System.out.println("readTxtSubstr: ${readTxt.substring(0, currTxt.length)}")
             if (readTxt.substring(0, currTxt.length) == currTxt) {
                 val n = readTxt.substring(currTxt.length)
-                return n.trim().substringBefore(' ')
+                return n.trim().split(wordSplitterRegex).first()
             } else {
-                throw IllegalArgumentException("currTxt must be a subset of readTxt.")
+                throw IllegalArgumentException("currTxt must be a subset of readTxt. (getCurrWord)")
             }
         }
     }
@@ -468,17 +512,35 @@ class MainActivity : ComponentActivity() {
     var numWordsFuture = 3
 
     fun getDetectWords(readTxt:String, currTxt:String): List<String> {
-        if (currTxt.length <= readTxt.length) {
+        if (currTxt.length >= readTxt.length) {
             return listOf()
         } else {
             if (readTxt.substring(0, currTxt.length) == currTxt) {
                 val n = readTxt.substring(currTxt.length)
-                val t = n.trim().split(' ')
-                return t.subList(0, min(numWordsFuture, t.size))
+                val t = n.trim().split(wordSplitterRegex)
+                val res =  t.subList(0, min(numWordsFuture, t.size))
+
+                /*val res = mutableListOf<String>()
+                for (ridx in rawres.indices) {
+                    res.add(rawres[ridx].trim().lowercase())
+                }*/
+
+                /*System.out.print("Words possible: ")
+                for (r in res) System.out.print("'$r', ")
+                System.out.println()*/
+
+                return res
             } else {
                 throw IllegalArgumentException("currTxt must be a subset of readTxt.")
             }
         }
+    }
+
+    fun wordsMatch(word1:String, word2:String) : Boolean {
+        val w1 = nonAlphanumericRegex.replace(word1, "").lowercase()
+        val w2 = nonAlphanumericRegex.replace(word2, "").lowercase()
+        //System.out.println("COMPARING: $w1 and $w2")
+        return w1 == w2
     }
 
     fun getTillWord(readTxt:String, currTxt:String, word:String) : String {
@@ -493,18 +555,23 @@ class MainActivity : ComponentActivity() {
                 return readTxt + n.substring(0, matchRes.range.last)
             }
             */
-            System.out.println("FINDING WORD $word IN readTxt: \n$readTxt\n; currTxt: \n$currTxt\n; n: \n$n\n; nsubstr: \n${n.substring(0, word.length)}\n\n")
+            //System.out.println("FINDING WORD $word IN readTxt: \n$readTxt\n\ncurrTxt: \n$currTxt\n\nn: \n$n\n\nnsubstr: \n${n.substring(0, word.length)}\n\n\n")
 
             val res = n.substringBefore(word, "")
 
             if (res == "" && (n.substring(0, word.length) != word)) {
                 throw IllegalArgumentException("Word not found in readTxt after currTxt. ")
             } else {
-                return currTxt + res + word + ' '
+                try {
+                    val temp = currTxt + res + word + n.substringAfter(word,"").split(alphanumericRegex).first()
+                    return temp
+                } catch (e:Exception) {
+                    return currTxt + res + word + ' '
+                }
             }
 
         } else {
-            throw IllegalArgumentException("currTxt must be a subset of readTxt.")
+            throw IllegalArgumentException("currTxt must be a subset of readTxt. (getTillWord)")
         }
     }
 
@@ -529,8 +596,15 @@ class MainActivity : ComponentActivity() {
 
                 Text("FOCUSED READING OUT LOUD MODE", style = LocalTextStyles.current.xl)
 
+                //val box_height = (getSystemService(WINDOW_SERVICE) as WindowManager).defaultDisplay.height * 0.7f
                 Box(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        //.fillMaxSize()
+                        .fillMaxWidth()
+                        .weight(0.8f)
+                        //.heightIn(min=box_height.dp, max=box_height.dp)
+                        .verticalScroll(rememberScrollState())
+                    ,
                 ) {
                     Text(readTxt, style=LocalTextStyles.current.m)
 
@@ -552,7 +626,9 @@ class MainActivity : ComponentActivity() {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .wrapContentHeight(),
+                        .wrapContentHeight()
+                        .weight(0.2f)
+                    ,
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
                     Button({
@@ -595,36 +671,78 @@ class MainActivity : ComponentActivity() {
 
 
         // init STT
-        val sttIntent = remember {
+        var sttIntent = Intent()
+        sttIntent =
             initSTT(onBeginSpeech = {
                 // probably need nothing here so it's fine
             }, onResults = {
-                // prob need nth here
+                // prob need nth??
             }, onPartialResults = {
                 if (it == null) {
                     Toast.makeText(this, "NO SPEECH DETECTED", Toast.LENGTH_SHORT).show()
                 } else {
-                    System.out.println("TEXT DETECTED FROM SPEECH: ")
+                    //System.out.print("TEXT DETECTED FROM SPEECH: ")
 
                     for (s in it) {
-                        System.out.println(s)
-                        for (w in s.split(' ')) {
-                            if (w in getDetectWords(readTxt, currTxt)) {
-                                setCurrTxt(getTillWord(readTxt, currTxt, w))
-                                if (currTxt == readTxt) {
+                        //System.out.println(s)
+                        val word = s.split(wordSplitterRegex).last()
+                        //System.out.println("WORD: $word")
 
-                                    return@initSTT
-                                }
+                        // not anymore because not recomposing or something
+
+                        // so, i just copied the code here
+                        /*lateinit var detectWords: List<String>
+                        if (currTxt.length >= readTxt.length) {
+                            detectWords = listOf()
+                        } else {
+                            if (readTxt.substring(0, currTxt.length) == currTxt) {
+                                val n = readTxt.substring(currTxt.length)
+                                val t = n.trim().split(wordSplitterRegex)
+                                detectWords =  t.subList(0, min(numWordsFuture, t.size))
+                                System.out.print("Words possible: ")
+                                for (r in detectWords) System.out.print("'$r', ")
+                                System.out.println()
+                            } else {
+                                throw IllegalArgumentException("currTxt must be a subset of readTxt.")
                             }
                         }
+
+                        if (w in detectWords) {*/
+
+                        //if (w in getDetectWords(readTxt, currTxt)) {
+
+
+                        var w: String? = null
+                        val detectWords = getDetectWords(readTxt, currTxt)
+                        for (dwidx in detectWords.indices) {
+                            //if (word.trim().lowercase() == detectWords[dwidx].trim().lowercase()) {
+                            if (wordsMatch(word, detectWords[dwidx])) {
+                                w = detectWords[dwidx]
+                                break
+                            }
+                        }
+
+                        if (w != null) {
+                            System.out.println("MATCH FOUND!!")
+                            speechRecognizer.stopListening()
+                            setCurrTxt(getTillWord(readTxt, currTxt, w))
+                            if (currTxt == readTxt) {
+
+                                return@initSTT
+                            }
+                        }
+
+
                     }
 
+                    //Toast.makeText(this, "WORD DETECTED YAY", Toast.LENGTH_SHORT).show()
                     //Toast.makeText(this, "SPEECH DETECTED SUCCESSFULLY!", Toast.LENGTH_SHORT).show()
-                    Log.d("SPEECH DETECTOR", "SPEECH DETECTED SUCCESSFULLY")
+                    //Log.d("SPEECH DETECTOR", "SPEECH DETECTED SUCCESSFULLY")
                 }
-            })
-        }
+            }, restart = { speechRecognizer.startListening(sttIntent) })
 
+
+        speechRecognizer.stopListening()
         speechRecognizer.startListening(sttIntent)
 
     }
@@ -670,7 +788,10 @@ class MainActivity : ComponentActivity() {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            ChangeReplacedTextSizeSlider({ recomposeOuter() })
+            ChangeReplacedTextSizeSlider(Variables.overlayTextSize) {
+                Variables.overlayTextSize = it
+                recomposeOuter()
+            }
 
             var amenuEnabled: Boolean by remember(
                 (getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager) // accessibilty manager
@@ -762,7 +883,8 @@ class MainActivity : ComponentActivity() {
             modifier = Modifier
                 .wrapContentHeight()
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp),
+                .padding(horizontal = 16.dp)
+                .forceRecomposeWith(showConfirmationDialog),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -806,6 +928,7 @@ class MainActivity : ComponentActivity() {
         LazyVerticalGrid(
             GridCells.Adaptive(minSize = HistoryItem.width),
             verticalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = Modifier.forceRecomposeWith(showConfirmationDialog)
         ) {
 
             items(histItemCnt) {
@@ -864,16 +987,26 @@ class MainActivity : ComponentActivity() {
 
 
     @Composable
-    fun ShowSettings(recomposeBool:Boolean, recompose:()->Unit, recomposeOuter:()->Unit) {
+    fun ShowSettings(recomposeBool:Boolean, recompose:()->Unit, recomposeOuter:()->Unit, ) {
+
+        var textScale by remember { mutableFloatStateOf(Variables.textScale) }
 
         Column (
             modifier = Modifier
                 .fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            ChangeReplacedTextSizeSlider({ recomposeOuter() })
+            ChangeReplacedTextSizeSlider(Variables.overlayTextSize, textScale) {
+                Variables.overlayTextSize = it
+                recomposeOuter()
+            }
 
-            ChangeTextScaleSlider({ recomposeOuter() })
+            ChangeTextScaleSlider(textScale) {
+                Variables.textScale = it
+                textScale = it
+                recomposeOuter()
+                recompose()
+            }
         }
 
     }
@@ -882,9 +1015,11 @@ class MainActivity : ComponentActivity() {
 
 
     @Composable
-    fun ShowCameraPage(hasPermission: Boolean, onRequestPermission: () -> Unit, backButtonFunc: ()->Unit) {
+    fun ShowCameraPage(hasPermission: Boolean, onRequestPermission: () -> Unit, backButtonFunc: ()->Unit,
+                       setReadText:(String)->Unit, goToReadTextScreen:()->Unit) {
         if (hasPermission) {
-            CameraScreen(backButtonFunc, ::sendNotification)
+            CameraScreen(backButtonFunc, ::sendNotification,
+                setReadText, goToReadTextScreen, )
         } else {
 
             // request permission
@@ -915,6 +1050,12 @@ class MainActivity : ComponentActivity() {
         mBounded = false
         Toast.makeText(this, "CLOSED ACCESSIBILITY MENU", Toast.LENGTH_SHORT).show()
     }*/
+
+
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        speechRecognizer.stopListening()
+    }
 
 }
 

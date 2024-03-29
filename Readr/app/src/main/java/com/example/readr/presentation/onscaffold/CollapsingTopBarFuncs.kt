@@ -36,6 +36,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import com.example.readr.Variables
+import com.example.readr.forceRecomposeWith
 import com.example.readr.ui.theme.LocalSpacings
 import com.example.readr.ui.theme.LocalTextStyles
 
@@ -90,6 +92,7 @@ fun CollapsedTopBar(
     modifier: Modifier = Modifier,
     isCollapsed: Boolean,
     title:String,
+    textScale: Float = Variables.textScale,
     MenuOptions:@Composable() (() -> Unit),
 ) {
     val color: Color by animateColorAsState(
@@ -100,21 +103,23 @@ fun CollapsedTopBar(
             .background(color)
             .fillMaxWidth()
             .height(COLLAPSED_TOP_BAR_HEIGHT)
-            .padding(16.dp),
+            .padding(16.dp)
+            .forceRecomposeWith(textScale),
         contentAlignment = Alignment.BottomEnd,
     ) {
         AnimatedVisibility(
-            modifier = Modifier.align(Alignment.BottomStart),
+            modifier = Modifier.align(Alignment.BottomStart).forceRecomposeWith(textScale),
             visible = isCollapsed
         ) {
-            Text(text = title, color = MaterialTheme.colorScheme.primary, style = LocalTextStyles.current.l)
+            Text(text = title, color = MaterialTheme.colorScheme.primary, style = LocalTextStyles.current.l,
+                modifier = Modifier.forceRecomposeWith(textScale))
         }
 
 
         // overflow menu - visible no matter what :)
 
         Box(
-            modifier = Modifier.align(Alignment.BottomEnd),
+            modifier = Modifier.align(Alignment.BottomEnd).forceRecomposeWith(textScale),
         ) {
             var showMenu by remember { mutableStateOf(false) }
 
@@ -126,12 +131,14 @@ fun CollapsedTopBar(
                     imageVector = Icons.Outlined.MoreVert,
                     contentDescription = "",
                     tint = MaterialTheme.colorScheme.onBackground,
+                    modifier = Modifier.forceRecomposeWith(textScale),
                 )
             }
 
             DropdownMenu(
                 expanded = showMenu,
-                onDismissRequest = { showMenu = false }
+                onDismissRequest = { showMenu = false },
+                modifier = Modifier.forceRecomposeWith(textScale),
             ) {
                 MenuOptions()
             }
@@ -148,6 +155,7 @@ fun WrapInColllapsedTopBar(padding: PaddingValues,
                            dropdownItems: List<DDItem>,
                            topBarTitle: String,
                            showAnyways: Boolean,
+                           textScale: Float = Variables.textScale, // for forcing recompose
                            content:@Composable()()->Unit) {
 
     val overlapHeightPx = with(LocalDensity.current) {
@@ -169,7 +177,7 @@ fun WrapInColllapsedTopBar(padding: PaddingValues,
     ) {
 
         Box() {
-            CollapsedTopBar(modifier = Modifier.zIndex(2f), isCollapsed=(isCollapsed || showAnyways), topBarTitle) {
+            CollapsedTopBar(modifier = Modifier.zIndex(2f), isCollapsed=(isCollapsed || showAnyways), topBarTitle, textScale) {
                 for (ddItem in dropdownItems) ddItem.Show()
             }
 

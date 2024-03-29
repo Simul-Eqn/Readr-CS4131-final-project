@@ -6,7 +6,7 @@ import androidx.compose.ui.text.font.FontWeight
 
 class Variables {
     companion object {
-        var overlayTextSize = 20
+        var overlayTextSize = 20f
         var overlayFontFamily = openDyslexic
         var textScale = 1.0F
         var textFontFamily = openDyslexic

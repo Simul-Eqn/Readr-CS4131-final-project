@@ -12,21 +12,22 @@ class FirebaseHandler {
     val db = Firebase.firestore
     val prefs = db.collection("preferences")
 
-    var overlayTextSize = 20L
+    var overlayTextSize = 20.0f
 
-    fun loadTextSizes(onComplete:(Int)->Unit={}) {
+    fun loadTextSizes(onComplete:(Float)->Unit={}) {
         prefs.document("textSizes").get().addOnSuccessListener {
-            overlayTextSize = it.get("overlayTextSize") as Long
+            overlayTextSize = (it.get("overlayTextSize") as Long).toFloat()
+            onComplete(overlayTextSize)
         }
             .addOnFailureListener {
                 Toast.makeText(MainActivity.context, "ERROR LOADING DATA. PLEASE CHECK YOUR INTERNET CONNECTION!", Toast.LENGTH_SHORT).show()
             }
     }
 
-    fun saveOverlayTextSize(overlayTextSize:Int) {
+    fun saveOverlayTextSize() {
         prefs.document("textSizes").get().addOnSuccessListener {
             val new = HashMap<String, Any>(it.data!!)
-            new["overlayTextSize"] = overlayTextSize
+            new["overlayTextSize"] = overlayTextSize.toLong()
             prefs.document("textSizes").set(new)
                 .addOnSuccessListener { Log.w("fb_document", "SUCCESSFULLY SAVED OVERLAY TEXT SIZE") }
                 .addOnFailureListener { e -> Log.w("fb_document", ":( FAILED TO SAVE OVERLAY TEXT SIZE", e) }
