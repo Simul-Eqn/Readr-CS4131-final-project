@@ -83,8 +83,7 @@ class AccessibilityMenu : AccessibilityService() {
         val notification = Notification.Builder(this, channelID)
             .setContentTitle(title)
             .setContentText(text)
-            .setSmallIcon(R.drawable.ic_launcher_background)
-            //.setSmallIcon(R.drawable.appicon) TODO GET AN ICON
+            .setSmallIcon(R.drawable.appicon)
             .build()
 
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {

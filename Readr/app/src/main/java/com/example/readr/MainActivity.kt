@@ -29,7 +29,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -117,12 +116,8 @@ import com.google.accompanist.permissions.rememberPermissionState
 import com.google.android.gms.vision.CameraSource
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import me.nikhilchaudhari.quarks.CreateParticles
-import me.nikhilchaudhari.quarks.particle.EmissionType
 import java.util.Locale
-import java.util.concurrent.TimeUnit
 import kotlin.math.min
-import kotlin.random.Random
 import kotlin.random.Random.Default.nextInt
 
 
@@ -179,13 +174,30 @@ class MainActivity : ComponentActivity() {
     lateinit var cameraSource: CameraSource
 
     // onboarding page numbers, for help
-    val onboardingPageNum = mapOf<Int, Int?>( // first digit (tens) is outernav, second (ones) is innernav
+    val onboardingInitPageNum = mapOf<Int, Int?>( // first digit (tens) is outernav, second (ones) is innernav
         // 1 to 2
-        0 to null, // reading view
-        1 to null, // dashboard
-        2 to null, // settings
-        10 to null, // camera
-        20 to null, // history item
+        0 to 7, // reading view
+        1 to 1, // dashboard
+        2 to 3, // settings
+        10 to 4, // camera
+        11 to 4, // camera
+        12 to 4, // camera
+        20 to 2, // history item
+        21 to 2, // history item
+        22 to 2, // history item
+    )
+
+    val onboardingEndPageNum = mapOf<Int, Int?>( // first digit (tens) is outernav, second (ones) is innernav
+        // 1 to 2
+        0 to 8, // reading view
+        1 to 1, // dashboard
+        2 to 3, // settings
+        10 to 6, // camera
+        11 to 6, // camera
+        12 to 6, // camera
+        20 to 2, // history item
+        21 to 2, // history item
+        22 to 2, // history item
     )
 
 
@@ -286,8 +298,7 @@ class MainActivity : ComponentActivity() {
         val notification = Notification.Builder(this, channelID)
             .setContentTitle(title)
             .setContentText(text)
-            .setSmallIcon(R.drawable.ic_launcher_background)
-            //.setSmallIcon(R.drawable.appicon) TODO GET AN ICON
+            .setSmallIcon(R.drawable.appicon)
             .build()
 
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
@@ -315,11 +326,12 @@ class MainActivity : ComponentActivity() {
         setContent {
 
             val cursor = contentResolver.query(Uri.parse(PersistentStorage.URL), null, null, null, null)
-            var temp = true//false
+            var temp = false
             if (cursor!!.moveToFirst()) temp = true
             cursor.close()
             var finishedOnboarding by remember { mutableStateOf(temp) }
             var onboardingInitPage:Int? = null
+            var onboardingEndPage:Int? = null
 
             var localDarkTheme by remember { mutableStateOf(darkTheme) }
             var viewNo by remember(outerNavPageNo) { mutableIntStateOf(outerNavPageNo) }
@@ -358,7 +370,7 @@ class MainActivity : ComponentActivity() {
                         offsetX.floatValue = 0f
                         screenShotState.setBitmap(null)
                     },
-                    animationSpec = tween(2000)
+                    animationSpec = tween(1500)
                 )
 
             val animationOffsetY =
@@ -369,7 +381,7 @@ class MainActivity : ComponentActivity() {
                         offsetY.floatValue = 0f
                         screenShotState.setBitmap(null)
                     },
-                    animationSpec = tween(2000)
+                    animationSpec = tween(1500)
                 )
 
 
@@ -429,7 +441,9 @@ class MainActivity : ComponentActivity() {
                         },
                         {
                             onboardingInitPage =
-                                onboardingPageNum[outerNavPageNo * 10 + innerNavTabNo]
+                                onboardingInitPageNum[outerNavPageNo * 10 + innerNavTabNo]
+                            onboardingEndPage =
+                                onboardingEndPageNum[outerNavPageNo * 10 + innerNavTabNo]
                             finishedOnboarding = false // re-show onboarding screen yey
                         },
                     )
@@ -463,7 +477,7 @@ class MainActivity : ComponentActivity() {
                                     outerNavPageNo = it
                                     viewNo = it }, recomposeBool, ::recomposeOuter, firstOne)
 
-                                false -> OnBoardingScreen(onboardingInitPage) {
+                                false -> OnBoardingScreen(onboardingInitPage, onboardingEndPage) {
                                     finishedOnboarding = true
                                     Log.w("ONBOARDING", "FINISHED: $finishedOnboarding")
                                     val values = ContentValues()
@@ -647,7 +661,8 @@ class MainActivity : ComponentActivity() {
                     { setViewNo(0) },
                     { readText = it },
                     { idx = 0 ; setViewNo(0) },
-                    setOnback
+                    setOnback,
+                    dropdownItems,
                 )
             }
 
@@ -655,7 +670,7 @@ class MainActivity : ComponentActivity() {
                 modifier = Modifier
                     .fillMaxSize()
                     .background(MaterialTheme.colorScheme.background),
-                topBar = { DisplayTopBar("History item $histItemNum", { setViewNo(0) }) }
+                topBar = { DisplayTopBar("History item $histItemNum", { setViewNo(0) }, dropdownItems) }
             ) {
                 Column(
                     modifier = Modifier
@@ -672,7 +687,7 @@ class MainActivity : ComponentActivity() {
 
 
     // for reading view stuff
-    var readText = "text to read. \nPlease work haha. \n\n\nhey (hey) wow. iweshdkf."
+    var readText = "text to read. \nThis is a placeholder. \nPlease use the camera feature. "
 
     val wordSplitterRegex = Regex("""[\s\n]+""")
     val alphanumericRegex = Regex("""[a-zA-Z0-9]+""")
@@ -1003,44 +1018,55 @@ class MainActivity : ComponentActivity() {
             }) {
 
                 Box(
-                    modifier = Modifier.fillMaxSize().noRippleClickable {
-                        mediaPlayer.stop()
-                        reset()
-                    }
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .noRippleClickable {
+                            mediaPlayer.stop()
+                            reset()
+                        }
                 ) {
                     val dm: DisplayMetrics = MainActivity.context.resources.displayMetrics
 
                     Box(
-                        modifier = Modifier.fillMaxSize().padding(top=COLLAPSED_TOP_BAR_HEIGHT).padding(top=32.dp),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(top = COLLAPSED_TOP_BAR_HEIGHT)
+                            .padding(top = 32.dp),
                         contentAlignment = Alignment.TopCenter
                     ) {
                         Row(
-                            modifier = Modifier.fillMaxWidth().wrapContentHeight(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .wrapContentHeight(),
                             horizontalArrangement = Arrangement.SpaceEvenly,
                         ) {
                             Spacer(Modifier.weight(0.5f))
-                            Confetti(0f, -(dm.heightPixels*0.8).toFloat(), Modifier.weight(0.1f) )
+                            Confetti(0f, 0f, Modifier.weight(0.1f) )
                             Spacer(Modifier.weight(0.5f))
-                            Confetti(0f, -(dm.heightPixels*0.8).toFloat(), Modifier.weight(0.1f) )
+                            Confetti(0f, 0f, Modifier.weight(0.1f) )
                             Spacer(Modifier.weight(0.5f))
                         }
 
                     }
 
                     Box(
-                        modifier = Modifier.fillMaxSize().padding(bottom=32.dp),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(bottom = 32.dp),
                         contentAlignment = Alignment.BottomCenter
                     ) {
                         Row(
-                            modifier = Modifier.fillMaxWidth().wrapContentHeight(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .wrapContentHeight(),
                             horizontalArrangement = Arrangement.SpaceEvenly,
                         ) {
                             Spacer(Modifier.weight(0.5f))
-                            Fountain(0f, 0f, Modifier.weight(0.1f) )
-                            Spacer(Modifier.weight(0.5f))
-                            Fountain(0f, 0f, Modifier.weight(0.1f) )
-                            Spacer(Modifier.weight(0.5f))
-                            Fountain(0f, 0f, Modifier.weight(0.1f) )
+                            Fountain(0f, (dm.heightPixels*0.8).toFloat(), Modifier.weight(0.1f) )
+                            Spacer(Modifier.weight(0.8f))
+                            Fountain(0f, (dm.heightPixels*0.8).toFloat(), Modifier.weight(0.1f) )
+                            Spacer(Modifier.weight(0.8f))
+                            Fountain(0f, (dm.heightPixels*0.8).toFloat(), Modifier.weight(0.1f) )
                             Spacer(Modifier.weight(0.5f))
                         }
 
@@ -1065,14 +1091,16 @@ class MainActivity : ComponentActivity() {
                         shape = RoundedCornerShape(16.dp),
                     ) {
 
-                        Text("GOOD JOB!!", modifier = Modifier.padding(10.dp).fillMaxWidth(),
+                        Text("GOOD JOB!!", modifier = Modifier
+                            .padding(16.dp)
+                            .fillMaxWidth(),
                             textAlign = TextAlign.Center,
                             style= LocalTextStyles.current.l)
 
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
 
                         Text(happyQuotes[nextInt(0, happyQuotes.size)], modifier = Modifier.padding(16.dp),
-                            style = LocalTextStyles.current.s)
+                            style = LocalTextStyles.current.m)
 
                     }
                 }
@@ -1217,7 +1245,9 @@ class MainActivity : ComponentActivity() {
 
 
                 Icon(painterResource(R.drawable.history_icon), "Text replacement history",
-                modifier = Modifier.size(32.dp).forceRecomposeWith(recomposeBool)
+                modifier = Modifier
+                    .size(32.dp)
+                    .forceRecomposeWith(recomposeBool)
                     , tint =
                     if (darkTheme) Color.Green
                     else Color.Blue
@@ -1233,14 +1263,15 @@ class MainActivity : ComponentActivity() {
 
 
 
+        /*
         // check network connection
-
         val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         val aninfo = cm.activeNetworkInfo
         if ((aninfo == null) or (!(aninfo!!.isConnected))) {
             // say that no network and return
             Toast.makeText(this, "Failed to connect to internet. Please check your network connection!", Toast.LENGTH_SHORT).show()
             Text("Not connected to internet. cannot load or view history. ", style= LocalTextStyles.current.m)
+
         } else {
 
             var histItemCnt by remember { mutableStateOf(0) }
@@ -1263,6 +1294,39 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
+
+        }*/
+
+        var histItemCnt by remember { mutableStateOf(0) }
+
+        var exception by remember { mutableStateOf(false) }
+
+        try {
+            imgl.withNextImgNum { histItemCnt = it }
+        } catch (e:Exception) {
+            exception = true
+        }
+
+        if (exception) {
+            // say that no network and return
+            Toast.makeText(this, "Failed to connect to internet. Please check your network connection!", Toast.LENGTH_SHORT).show()
+            Text("Not connected to internet. cannot load or view history. ", style= LocalTextStyles.current.m)
+        } else {
+            System.out.println("BOXING YES")
+
+            LazyVerticalGrid(
+                GridCells.Adaptive(minSize = HistoryItem.width),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier.forceRecomposeWith(showConfirmationDialog)
+            ) {
+
+                items(histItemCnt) {
+                    HistoryItem(histItemCnt - it - 1).ShowView {
+                        histItemNum = histItemCnt - it - 1
+                        showHistoryItemView()
+                    } // so that highest num, latest, is shown first
+                }
+            }
 
         }
 
@@ -1346,12 +1410,18 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     fun ShowCameraPage(
-        hasPermission: Boolean, onRequestPermission: () -> Unit, backButtonFunc: () -> Unit,
-        setReadText: (String) -> Unit, goToReadTextScreen: () -> Unit, setOnback: ((()->Unit)?) -> Unit
+        hasPermission: Boolean,
+        onRequestPermission: () -> Unit,
+        backButtonFunc: () -> Unit,
+        setReadText: (String) -> Unit,
+        goToReadTextScreen: () -> Unit,
+        setOnback: ((() -> Unit)?) -> Unit,
+        dropdownItems: MutableList<DDItem>,
     ) {
         if (hasPermission) {
             CameraScreen(backButtonFunc, ::sendNotification,
-                setReadText, goToReadTextScreen, setOnback)
+                setReadText, goToReadTextScreen, setOnback,
+                dropdownItems)
         } else {
 
             // request permission - adapted from https://github.com/YanneckReiss/JetpackComposeMLKitTutorial
@@ -1388,6 +1458,7 @@ class MainActivity : ComponentActivity() {
         super.onUserLeaveHint()
         should_listen = false
         speechRecognizer.stopListening()
+        mediaPlayer.stop()
     }
 
 }

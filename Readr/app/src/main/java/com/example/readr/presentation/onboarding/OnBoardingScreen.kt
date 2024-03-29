@@ -35,29 +35,90 @@ import kotlinx.coroutines.launch
 
 val pages = listOf<Page>(
     Page(
-        title = "Toggle List Layout",
-        description = "Toggle the list layout of the chapters for your own view!",
-        image = R.drawable.ic_launcher_background,
+        title = "Readr",
+        description = "Welcome to Readr! An application designed to assist in reading! (including Dyslexia, Presbyopia)",
+        image = R.drawable.appicon,
     ),
 
     Page(
-        title = "Module Information",
-        description = "View the module information for your reference at a click!",
-        image = R.drawable.ic_launcher_background,
+        title = "Dashboard",
+        description = "Welcome to the Dashboard! View history, or open the accessibility page in Settings to easily find the accessibility menu for this service (explained later). You can also press the camera button to use the camera feature! ",
+        image = R.drawable.dashboard,
     ),
 
     Page(
-        title = "Dark Mode",
-        description = "Switch to Dark Mode using the Overflow menu!",
-        image = R.drawable.ic_launcher_background,
-    )
+        title = "History",
+        description = "Welcome to the Dashboard! View history, or open the accessibility page in Settings to easily find the accessibility menu for this service (explained later). You can also press the camera button to use the camera feature! ",
+        image = R.drawable.history_page,
+    ),
+
+    Page(
+        title = "Settings",
+        description = "Here, you can change the size of text displayed in this app, or the size of text drawn by the accessibility menu or camera feature. ",
+        image = R.drawable.settings,
+    ),
+
+    Page(
+        title = "Camera (when using) ",
+        description = "When you click the camera icon, the app will detect the text in the image and display it! Use the sliders at the bottom and right to adjust the position of text displayed, and the slider above to adjust the text size. Click the button below to capture that screen with the camera. ",
+        image = R.drawable.camera_using,
+    ),
+
+    Page(
+        title = "Camera (when done)",
+        description = "After clicking the camera capture button, you will see this screen, where you can easily view the text, and choose from a list of actions to take from the bottom, which is scrollable. ",
+        image = R.drawable.camera_done,
+    ),
+
+    Page(
+        title = "Camera (copying dialog) ",
+        description = "If you click the \"Select all\" button, you will see this dialog, and you can easily copy the text to your clipboard. ",
+        image = R.drawable.camera_done,
+    ),
+
+    Page(
+        title = "Reading",
+        description = "If you choose to send to focused reading, or click the button, you may enter Focused Reading mode. The app will detect if you read the words and mark your progress, while you can use the help or skip buttons below if you are stuck. ",
+        image = R.drawable.read_init,
+    ),
+
+    Page(
+        title = "Reading (completed)",
+        description = "After finishing reading the piece of text, you will be rewarded with confetti, claps, and an amazing quote! Tap anywhere to dismiss. ",
+        image = R.drawable.read_complete,
+    ),
+
+    Page(
+        title = "More functions",
+        description = "There may also be other functions you can use if you press the three dots on the top right ;) (there's an amazing animation waiting for you :O)",
+        image = R.drawable.more_actions,
+    ),
+
+    Page(
+        title = "Accessibility Service (activation)",
+        description = "If you recall the button on the dashboard, it takes you to this settings screen for you to enable the accessibility service for this application. ",
+        image = R.drawable.amenu_settings_page_outer,
+    ),
+
+    Page(
+        title = "Accessibility Service (shortcut)",
+        description = "Enable the shortcut as shown, and you can see a floating accessibility button. This can be hidden at the edge of the screen (as shown in this image) ",
+        image = R.drawable.amenu_settings_page_inner,
+    ),
+
+    Page(
+        title = "Accessibility Service (usage)",
+        description = "When you click the button, text will appear above your screen, using a very readable and cute font :) (OpenDyslexic). The big red X closes this, and lets you continue with whatever you were doing. ",
+        image = R.drawable.amenu_usage,
+    ),
+
 
 )
 
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun OnBoardingScreen(initPage:Int? = null, endFunc:()->Unit) {
+fun OnBoardingScreen(initPage:Int? = null, endPage:Int?=initPage, endFunc:()->Unit) {
     Column(modifier = Modifier.fillMaxSize()) {
         lateinit var pagerState:PagerState
         pagerState = if (initPage != null) {
@@ -73,9 +134,9 @@ fun OnBoardingScreen(initPage:Int? = null, endFunc:()->Unit) {
         val buttonState = remember {
             derivedStateOf {
                 when (pagerState.currentPage) {
-                    initPage -> listOf("Back", "Get Started")
+                    endPage -> listOf("Back", "Return")
                     0 -> listOf("", "Next")
-                    pages.size-1 -> listOf("Back", "Get Started")
+                    pages.size-1 -> listOf("Back", "Complete!")
                     else -> listOf("Back", "Next")
                 }
             }
@@ -123,7 +184,7 @@ fun OnBoardingScreen(initPage:Int? = null, endFunc:()->Unit) {
 
                 OnBoardingButton(text = buttonState.value[1]) {
                     scope.launch {
-                        if (pagerState.currentPage == pages.size-1) {
+                        if (pagerState.currentPage == pages.size-1 || pagerState.currentPage == endPage) {
                             endFunc()
                         } else {
                             pagerState.animateScrollToPage(pagerState.currentPage+1)

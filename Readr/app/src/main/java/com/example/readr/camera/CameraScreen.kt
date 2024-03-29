@@ -61,6 +61,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import com.example.readr.MainActivity
 import com.example.readr.noRippleClickable
+import com.example.readr.presentation.onscaffold.DDItem
 import com.example.readr.presentation.onscaffold.DisplayTopBar
 import com.example.readr.ui.theme.LocalTextStyles
 import kotlin.random.Random
@@ -70,7 +71,7 @@ import kotlin.random.Random
 @Composable
 fun CameraScreen(backButtonFunc: () -> Unit, sendNotification: (String, String) -> Unit,
                  setReadText:(String)->Unit, goToReadTextScreen:()->Unit,
-                 setOnback:((()->Unit)?)->Unit ) {
+                 setOnback:((()->Unit)?)->Unit, dropdownItems: MutableList<DDItem> ) {
 
     var overlayContent : @Composable()(PaddingValues)->Unit by remember { mutableStateOf({}) }
 
@@ -87,7 +88,7 @@ fun CameraScreen(backButtonFunc: () -> Unit, sendNotification: (String, String) 
     CameraContent( overlayContent , { overlayContent = it } ,
         // addOffsetX , { addOffsetX = it }, addOffsetY , { addOffsetY = it },
         backButtonFunc,
-        frozen, { frozen = it }, sendNotification, setReadText, goToReadTextScreen, )
+        frozen, { frozen = it }, sendNotification, setReadText, goToReadTextScreen, dropdownItems )
 }
 
 @Composable
@@ -95,7 +96,8 @@ private fun CameraContent(overlayContent:@Composable()(PaddingValues)->Unit, set
                           //addOffsetX: Float, setAddOffsetX:(Float)->Unit , addOffsetY: Float, setAddOffsetY:(Float)->Unit ,
                           backButtonFunc: () -> Unit,
                           frozen: Int, setFrozen: (Int)->Unit, sendNotification: (String, String) -> Unit,
-                          setReadText:(String)->Unit, goToReadTextScreen:()->Unit) {
+                          setReadText:(String)->Unit, goToReadTextScreen:()->Unit,
+                          dropdownItems: MutableList<DDItem>, ) {
 
     val context: Context = LocalContext.current
     val lifecycleOwner: LifecycleOwner = LocalLifecycleOwner.current
@@ -112,7 +114,7 @@ private fun CameraContent(overlayContent:@Composable()(PaddingValues)->Unit, set
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
-        topBar = { DisplayTopBar("Text Scanner", backButtonFunc) },
+        topBar = { DisplayTopBar("Text Scanner", backButtonFunc, dropdownItems) },
     ) { paddingValues: PaddingValues ->
         Box(
             modifier = Modifier.fillMaxSize(),
