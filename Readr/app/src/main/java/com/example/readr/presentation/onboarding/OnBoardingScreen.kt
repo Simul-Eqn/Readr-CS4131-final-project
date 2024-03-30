@@ -62,9 +62,15 @@ val pages = listOf<Page>(
     ),
 
     Page(
-        title = "History",
-        description = "Here, you can view your past uses of the app! If you accidentally closed, or just want to see something you were looking at before, you can click one of these! ",
+        title = "History Page",
+        description = "After clicking the history icon on the dashboard, you can view a page filled with history items! ",
         image = R.drawable.history_page,
+    ),
+
+    Page(
+        title = "History Item",
+        description = "Here, you can view your past uses of the app! If you accidentally closed, or just want to see something you were looking at before, you can click one of these! ",
+        image = R.drawable.history_item_page,
     ),
 
     Page(
@@ -87,7 +93,7 @@ val pages = listOf<Page>(
 
     Page(
         title = "Camera (copying dialog) ",
-        description = "If you click the \"Select all\" button, you will see this dialog, and you can easily copy the text to your clipboard. ",
+        description = "If you click the \"Select all\" button, you will see this dialog, and you can easily copy the text to your clipboard. (it is scrollable)",
         image = R.drawable.camera_copy,
     ),
 
@@ -129,7 +135,7 @@ val pages = listOf<Page>(
 
     Page(
         title = "Accessibility Service Usage",
-        description = "When you click the button, text will appear above your screen, using a very readable and cute font :) (OpenDyslexic). The big red X closes this, and lets you continue with whatever you were doing. ",
+        description = "When you click the button, text will appear above your screen, using a very readable and cute font :) (OpenDyslexic). The big red X closes this, and lets you continue with whatever you were doing. (the X is also hidden in the history record!)",
         image = R.drawable.amenu_usage,
     ),
 
@@ -142,6 +148,8 @@ val pages = listOf<Page>(
 fun OnBoardingScreen(initPage:Int? = null, endPage:Int?=initPage, endFunc:()->Unit) {
     //val initScale = Variables.textScale
     LocalTextStyles.current.setTextScale(1.0f)
+
+    System.out.println("ONBOARDING: $initPage and $endPage")
 
     Column(modifier = Modifier
         .fillMaxSize()
@@ -208,7 +216,7 @@ fun OnBoardingScreen(initPage:Int? = null, endPage:Int?=initPage, endFunc:()->Un
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(painterResource(R.drawable.skip_icon), "Skip word button", modifier=Modifier.heightIn(20.dp, 20.dp))
+                    Icon(painterResource(R.drawable.skip_icon), "Skip help page button", modifier=Modifier.heightIn(20.dp, 20.dp))
                     Text("SKIP", maxLines=1, softWrap=false, style= LocalTextStyles.current.l)
                 }
             }
@@ -262,6 +270,13 @@ fun OnBoardingScreen(initPage:Int? = null, endPage:Int?=initPage, endFunc:()->Un
                 if (buttonState.value[0].isNotEmpty()) {
                     OnBoardingTextButton(text = buttonState.value[0]) {
                         scope.launch {
+
+                            contentTextStyle = contentTextStyleInit
+                            displayContent = false
+
+                            titleTextStyle = titleTextStyleInit
+                            displayTitle = false
+
                             pagerState.animateScrollToPage(pagerState.currentPage-1)
                         }
                     }
@@ -273,13 +288,13 @@ fun OnBoardingScreen(initPage:Int? = null, endPage:Int?=initPage, endFunc:()->Un
                             endFunc()
                         } else {
 
-                            pagerState.animateScrollToPage(pagerState.currentPage+1)
-
-                            displayContent = false
                             contentTextStyle = contentTextStyleInit
+                            displayContent = false
 
-                            displayTitle = false
                             titleTextStyle = titleTextStyleInit
+                            displayTitle = false
+
+                            pagerState.animateScrollToPage(pagerState.currentPage+1)
 
                         }
                     }

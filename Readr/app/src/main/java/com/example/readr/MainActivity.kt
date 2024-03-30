@@ -184,28 +184,34 @@ class MainActivity : ComponentActivity() {
     // onboarding page numbers, for help
     val onboardingInitPageNum = mapOf<Int, Int?>( // first digit (tens) is outernav, second (ones) is innernav
         // 1 to 2
-        0 to 8, // reading view
+        0 to 9, // reading view
         1 to 1, // dashboard
-        2 to 3, // settings
-        10 to 4, // camera
-        11 to 4, // camera
-        12 to 4, // camera
+        2 to 4, // settings
+        10 to 5, // camera
+        11 to 5, // camera
+        12 to 5, // camera
         20 to 2, // history item
         21 to 2, // history item
         22 to 2, // history item
+        30 to 2,
+        31 to 2,
+        32 to 2,
     )
 
     val onboardingEndPageNum = mapOf<Int, Int?>( // first digit (tens) is outernav, second (ones) is innernav
         // 1 to 2
-        0 to 9, // reading view
+        0 to 10, // reading view
         1 to 1, // dashboard
-        2 to 3, // settings
-        10 to 7, // camera
-        11 to 7, // camera
-        12 to 7, // camera
-        20 to 2, // history item
-        21 to 2, // history item
-        22 to 2, // history item
+        2 to 4, // settings
+        10 to 8, // camera
+        11 to 8, // camera
+        12 to 8, // camera
+        20 to 3, // history item
+        21 to 3, // history item
+        22 to 3, // history item
+        30 to 3,
+        31 to 3,
+        32 to 3,
     )
 
 
@@ -363,8 +369,8 @@ class MainActivity : ComponentActivity() {
 
             cursor.close()
             var finishedOnboarding by remember { mutableStateOf(temp) }
-            var onboardingInitPage:Int? = null
-            var onboardingEndPage:Int? = null
+            var onboardingInitPage:Int? by remember { mutableStateOf<Int?>(null) }
+            var onboardingEndPage:Int? by remember { mutableStateOf<Int?>(null) }
 
             var localDarkTheme by remember { mutableStateOf(darkTheme) }
             var viewNo by remember(outerNavPageNo) { mutableIntStateOf(outerNavPageNo) }
@@ -491,6 +497,7 @@ class MainActivity : ComponentActivity() {
                                 onboardingInitPageNum[outerNavPageNo * 10 + innerNavTabNo]
                             onboardingEndPage =
                                 onboardingEndPageNum[outerNavPageNo * 10 + innerNavTabNo]
+                            System.out.println("RESHOWING ONBOARDING: $onboardingInitPage and $onboardingEndPage")
                             finishedOnboarding = false // re-show onboarding screen yey
                         },
                     )
@@ -580,6 +587,8 @@ class MainActivity : ComponentActivity() {
 
                 }
 
+            } else {
+                SplashScreen()
             }
 
         }
@@ -671,9 +680,6 @@ class MainActivity : ComponentActivity() {
                     ) {
 
 
-
-
-
                         HorizontalPager(
                             state = pagerState,
                             modifier = Modifier
@@ -701,12 +707,6 @@ class MainActivity : ComponentActivity() {
                                     LazyColumn(
                                         state = listState,
                                     ) {
-                                        /* if (outerNavPageNo == 0 && innerNavTabNo == 1) {
-                                    item() {
-                                        ExpandedTopBar(topBarImg, topBarTitle)
-                                    }
-                                } */ // no more expanded top bar
-
 
                                         items(1) {
                                             when (pagerState.currentPage) {
@@ -734,7 +734,8 @@ class MainActivity : ComponentActivity() {
                                         ShowHistory(histToggle,
                                             { histToggle = !histToggle ; System.out.println("RECOMPOSED IN FUNCTIOn") },
                                             { recomposeOuter() },
-                                            { setViewNo(2) })
+                                            { setViewNo(2) },
+                                            { setViewNo(3) })
 
                                         if (initHist) {
                                             val initHistScope = rememberCoroutineScope()
@@ -764,19 +765,6 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            /*1 -> Scaffold(
-                modifier = Modifier.fillMaxSize(),
-                topBar = { DisplayTopBar("Camera", { setViewNo(0) }) }
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(it),
-                ) {
-                    ShowCameraView()
-                }
-            }*/
-
             1 -> {
                 val cameraPermissionState: PermissionState = rememberPermissionState(android.Manifest.permission.CAMERA)
 
@@ -787,6 +775,7 @@ class MainActivity : ComponentActivity() {
                     { readText = it },
                     { setIdx(0) ; setViewNo(0) },
                     setOnback,
+                    initOnback,
                     dropdownItems,
                 )
             }
@@ -812,6 +801,35 @@ class MainActivity : ComponentActivity() {
                     ,
                 ) {
                     histItems[histItemNum].ShowDetails(recomposeOuter)
+                }
+            }
+
+            3 -> Scaffold( // SHOW HISTORY PAGE
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.background),
+                topBar = { DisplayTopBar("Text Replacement History", { setViewNo(0) }, dropdownItems) }
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(it)
+                        .consumeWindowInsets(it)
+                        .systemBarsPadding()
+                        .noRippleClickable {
+                            MainActivity.window.decorView.apply {
+                                systemUiVisibility =
+                                    View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_FULLSCREEN
+                            }; System.out.println("HIDING NAVBAR")
+                        }
+                    ,
+                ) {
+                    var histToggle by remember { mutableStateOf(false) }
+
+                    ShowHistory(histToggle,
+                            { histToggle = !histToggle ; System.out.println("RECOMPOSED IN FUNCTIOn") },
+                            { recomposeOuter() },
+                            { setViewNo(2) }, {})
                 }
             }
         }
@@ -1336,7 +1354,8 @@ class MainActivity : ComponentActivity() {
                 Text("Open accessibility page in Settings", style= LocalTextStyles.current.m)
             }
 
-
+            Spacer(modifier = Modifier.height(16.dp))
+            Divider()
 
 
         }
@@ -1345,9 +1364,8 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
-    fun ShowHistory(recomposeBool:Boolean, recompose:()->Unit, recomposeOuter: () -> Unit, showHistoryItemView: () -> Unit) {
-        Spacer(modifier = Modifier.height(16.dp))
-        Divider()
+    fun ShowHistory(recomposeBool:Boolean, recompose:()->Unit, recomposeOuter: () -> Unit, showHistoryItemView: () -> Unit, goToHistoryPage: ()->Unit ) {
+
         Spacer(modifier = Modifier.height(16.dp))
 
         var showConfirmationDialog by remember { mutableStateOf(false) }
@@ -1426,6 +1444,7 @@ class MainActivity : ComponentActivity() {
                 modifier = Modifier
                     .size(32.dp)
                     .forceRecomposeWith(recomposeBool)
+                    .noRippleClickable(goToHistoryPage)
                     , tint =
                     if (darkTheme) Color.Green
                     else Color.Blue
@@ -1550,13 +1569,14 @@ class MainActivity : ComponentActivity() {
         setReadText: (String) -> Unit,
         goToReadTextScreen: () -> Unit,
         setOnback: ((() -> Unit)?) -> Unit,
+        initOnback: ()->Unit,
         dropdownItems: MutableList<DDItem>,
     ) {
         if (hasPermission) {
             var camera by remember { mutableStateOf(true) }
 
             CameraScreen(backButtonFunc, ::sendNotification,
-                setReadText, goToReadTextScreen, setOnback,
+                setReadText, goToReadTextScreen, setOnback, initOnback,
                 dropdownItems, camera, { camera = it })
         } else {
 

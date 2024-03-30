@@ -88,7 +88,7 @@ import kotlin.random.Random
 @Composable
 fun CameraScreen(backButtonFunc: () -> Unit, sendNotification: (String, String) -> Unit,
                  setReadText:(String)->Unit, goToReadTextScreen:()->Unit,
-                 setOnback:((()->Unit)?)->Unit, dropdownItems: MutableList<DDItem>,
+                 setOnback:((()->Unit)?)->Unit, initOnback:()->Unit, dropdownItems: MutableList<DDItem>,
                  camera:Boolean, setCamera:(Boolean)->Unit, ) {
 
     var overlayContent : @Composable()(PaddingValues)->Unit by remember { mutableStateOf({}) }
@@ -115,13 +115,15 @@ fun CameraScreen(backButtonFunc: () -> Unit, sendNotification: (String, String) 
                 goToReadTextScreen,
                 dropdownItems,
                 { setCamera(false) },
-                setOnback = setOnback,
+                setOnback,
+                initOnback,
             )
 
         } else { // gallery
-            setOnback({ setCamera(true) })
+            setOnback({ setCamera(true) ; initOnback() })
             GalleryScreen({ setCamera(true) }, dropdownItems, sendNotification, setReadText,
-                goToReadTextScreen, { setOnback { setCamera(true); if (it != null) it() } })
+                goToReadTextScreen, { setOnback { if (it != null) it{ setCamera(true) ; initOnback() } } },
+                { setCamera(true) ; initOnback() } )
         }
 
     }
@@ -134,12 +136,13 @@ private fun CameraContent(overlayContent:@Composable()(PaddingValues)->Unit, set
                           frozen: Int, setFrozen: (Int)->Unit, sendNotification: (String, String) -> Unit,
                           setReadText:(String)->Unit, goToReadTextScreen:()->Unit,
                           dropdownItems: MutableList<DDItem>, switchToGallery:()->Unit,
-                          setOnback:((()->Unit)?)->Unit) {
+                          setOnback:((()->Unit)?)->Unit, initOnback: () -> Unit) {
 
     when (frozen) {
-        0 -> setOnback(null) // reset to default onback
-        else -> setOnback { setFrozen(0) }
+        0 -> setOnback(initOnback)
+        else -> setOnback({ saveToHistory(sendNotification, initOnback) }) // reset to default onback
     }
+    //setOnback({ saveToHistory(sendNotification, initOnback) })
 
     val context: Context = LocalContext.current
     val lifecycleOwner: LifecycleOwner = LocalLifecycleOwner.current
@@ -159,7 +162,12 @@ private fun CameraContent(overlayContent:@Composable()(PaddingValues)->Unit, set
             modifier = Modifier.fillMaxSize(),
             topBar = {
                 CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-                    DisplayTopBar("Camera Text Scanner", {saveToHistory(sendNotification) ; backButtonFunc()}, dropdownItems)
+                    DisplayTopBar("Camera Text Scanner", {
+                        when (frozen) {
+                            0 -> initOnback()
+                            else -> { saveToHistory(sendNotification, initOnback) } // reset to default onback
+                        }
+                    }, dropdownItems)
                 }
                      },
             floatingActionButton = {
@@ -198,7 +206,8 @@ private fun CameraContent(overlayContent:@Composable()(PaddingValues)->Unit, set
             CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
 
                 Box(
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier
+                        .fillMaxSize()
                         .noRippleClickable {
                             MainActivity.window.decorView.apply {
                                 systemUiVisibility =
@@ -296,7 +305,9 @@ private fun CameraContent(overlayContent:@Composable()(PaddingValues)->Unit, set
                         if (frozen == 0) {
 
                             Box(
-                                modifier = Modifier.wrapContentSize().padding(bottom = 48.dp)
+                                modifier = Modifier
+                                    .wrapContentSize()
+                                    .padding(bottom = 48.dp)
                                     .align(Alignment.BottomCenter)
                             ) {
                                 // freeze button
@@ -352,9 +363,10 @@ private fun CameraContent(overlayContent:@Composable()(PaddingValues)->Unit, set
 
                                 item { // send to focused reading
                                     Button({
-                                        saveToHistory(sendNotification)
-                                        setReadText(text)
-                                        goToReadTextScreen()
+                                        saveToHistory(sendNotification, {
+                                            setReadText(text)
+                                            goToReadTextScreen()
+                                        })
                                     }) {
                                         Row(
                                             modifier = Modifier.wrapContentSize(),
@@ -422,10 +434,16 @@ fun ShowTextDialog(visible:Boolean, text:String, onDismiss:()->Unit) {
 
                 SelectionContainer {
                     Column(
-                        modifier = Modifier.fillMaxWidth().wrapContentHeight().padding(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .wrapContentHeight()
+                            .padding(12.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(min=30.dp, max=200.dp).padding(16.dp)) {
+                        LazyColumn(modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 30.dp, max = 200.dp)
+                            .padding(16.dp)) {
                             item {Text(text, style = LocalTextStyles.current.l)}
                         }
 
@@ -487,7 +505,7 @@ private fun startTextRecognition(
 
 }
 
-fun saveToHistory(sendNotification: (String, String) -> Unit) {
+fun saveToHistory(sendNotification: (String, String) -> Unit, onDone:()->Unit) {
     // SCREENSHOT AGAIN TO TRY TO SAVE
     try {
 
@@ -508,6 +526,7 @@ fun saveToHistory(sendNotification: (String, String) -> Unit) {
                 "Camera Usage Saved!",
                 "Used Readr Camera Service. Return to app history page to view or clear usage history. "
             )
+            onDone()
 
         }
 
@@ -531,6 +550,8 @@ fun saveToHistory(sendNotification: (String, String) -> Unit) {
             "Camera Usage Not saved :(",
             "Failed to save usage of accessibility service. The app history page will not show this usage. "
         )
+
+        onDone()
 
     }
 }

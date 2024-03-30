@@ -13,6 +13,7 @@ import android.os.Looper
 import android.util.DisplayMetrics
 import android.util.Log
 import android.view.View
+import android.widget.Toast
 import androidx.annotation.OptIn
 import androidx.camera.core.ExperimentalGetImage
 import androidx.camera.core.ImageAnalysis
@@ -139,16 +140,21 @@ class TextRecognitionAnalyzer(
             view.draw(canvas)
             return returnedBitmap*/
 
+            Toast.makeText(MainActivity.context, "Saving...", Toast.LENGTH_SHORT).show()
+            System.out.println("GETTING SCREENSHOT")
+
             val handler = Handler(Looper.getMainLooper())
             handler.postDelayed(Runnable {
                 val bmp = Bitmap.createBitmap(view.width, view.height,
                     Bitmap.Config.ARGB_8888).applyCanvas {
                     view.draw(this)
                 }
+                System.out.println("CALLING WITH BITMAP")
                 withBitmap(bmp)
             }, 1000)
         }
 
+        var offsetY = 0f
         var addOffsetX = 0f
         var addOffsetY = 0f
 

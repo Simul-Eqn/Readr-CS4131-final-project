@@ -80,7 +80,8 @@ fun GalleryScreen(
     returnToCamera: () -> Unit, dropdownItems: List<DDItem>,
     sendNotification: (String, String) -> Unit,
     setReadText: (String) -> Unit, goToReadTextScreen: () -> Unit,
-    setOnback: ((()->Unit)?)->Unit,
+    setOnback: (((()->Unit)->Unit)?)->Unit,
+    exit:()->Unit,
 ) {
     /*
     // Registers a photo picker activity launcher in single-select mode.
@@ -97,10 +98,10 @@ fun GalleryScreen(
     var selectedImageBmp by remember { mutableStateOf(ImageBitmap(100, 100))}
 
 
-    var leaveFunc: ()->Unit = {}
-    val setLeaveFunc:(()->Unit)->Unit = {
-        leaveFunc = it
-        setOnback(leaveFunc)
+    var leaveFunc: (()->Unit)->Unit = {}
+    val setLeaveFunc:((()->Unit)->Unit)->Unit = {newLeaveFunc:(()->Unit)->Unit ->
+        leaveFunc = newLeaveFunc
+        setOnback({ newLeaveFunc(it) })
     }
 
     var imgView by remember { mutableStateOf<@Composable()()->Unit>({}) }
@@ -356,6 +357,7 @@ fun GalleryScreen(
                         Log.d("DISPLAY OVERLAY", "ADDED VIEW")
 
                         setLeaveFunc {
+                            System.out.println("LEAVEFUNC CALLED")
                             try {
                                 TextRecognitionAnalyzer.getScreenShot(MainActivity.window.decorView.rootView) { finalBitmap: Bitmap ->
                                     // SAVE AS FINAL
@@ -368,6 +370,8 @@ fun GalleryScreen(
                                         "Camera Usage Saved!",
                                         "Used Readr Camera Service. Return to app history page to view or clear usage history. "
                                     )
+
+                                    it()
 
                                 }
 
@@ -385,6 +389,8 @@ fun GalleryScreen(
                                     "Camera Usage Not saved :(",
                                     "Failed to save usage of accessibility service. The app history page will not show this usage. "
                                 )
+
+                                it()
 
                             }
                         }
@@ -427,8 +433,44 @@ fun GalleryScreen(
 
                     item { // send to focused reading
                         Button({
-                            setReadText(text)
-                            goToReadTextScreen()
+                            try {
+                                TextRecognitionAnalyzer.getScreenShot(MainActivity.window.decorView.rootView) { finalBitmap: Bitmap ->
+                                    // SAVE AS FINAL
+                                    imgl.withNextImgNum({
+                                        imgl.saveImage(finalBitmap, "image_${it}_final.png")
+                                    })
+
+                                    // show notification
+                                    sendNotification(
+                                        "Camera Usage Saved!",
+                                        "Used Readr Camera Service. Return to app history page to view or clear usage history. "
+                                    )
+
+                                    setReadText(text)
+                                    goToReadTextScreen()
+
+                                }
+
+
+                            } catch (e: Exception) {
+
+                                Log.println(
+                                    Log.ASSERT,
+                                    "FINAL SCREENSHOT ERROR",
+                                    "CLDNT TAKE SCREENSHOT DURING CAMERA USAGE"
+                                )
+
+                                // show notifications
+                                sendNotification(
+                                    "Camera Usage Not saved :(",
+                                    "Failed to save usage of accessibility service. The app history page will not show this usage. "
+                                )
+
+                                setReadText(text)
+                                goToReadTextScreen()
+
+                            }
+
                         }) {
                             Row(
                                 modifier = Modifier.wrapContentSize(),
@@ -474,7 +516,7 @@ fun GalleryScreen(
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
-        topBar = { DisplayTopBar("Gallery Text Scanner", { leaveFunc() ; returnToCamera() }, dropdownItems) },
+        topBar = { DisplayTopBar("Gallery Text Scanner", { leaveFunc(exit) }, dropdownItems) },
     ) {
         Box(
             modifier = Modifier
@@ -525,21 +567,4 @@ fun GalleryScreen(
 
 }
 
-
-@Composable
-fun ShowGalleryImage(
-    selectedImageBmp: ImageBitmap?, returnToCamera: () -> Unit,
-    sendNotification: (String, String) -> Unit,
-    setLeaveFunc: (() -> Unit) -> Unit,
-    setReadText: (String) -> Unit, goToReadTextScreen: () -> Unit,
-    retake: () -> Unit, setView:(@Composable()()->Unit)->Unit,
-) {
-
-
-    if (selectedImageBmp != null) {
-
-        System.out.println("RECOMOPSE TRY")
-
-    }
-}
 

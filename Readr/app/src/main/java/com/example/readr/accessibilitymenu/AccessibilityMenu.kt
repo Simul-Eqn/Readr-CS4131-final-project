@@ -37,9 +37,12 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.platform.ComposeView
@@ -50,14 +53,19 @@ import androidx.compose.ui.unit.sp
 import androidx.core.app.ActivityCompat
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
+import com.example.readr.MainActivity
 import com.example.readr.R
 import com.example.readr.Variables
+import com.example.readr.camera.TextRecognitionAnalyzer
 import com.example.readr.data.ImageLoader
+import com.example.readr.noRippleClickable
 import com.example.readr.presentation.ChangeReplacedTextSizeSlider
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.TextRecognizer
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlin.properties.Delegates
 
 
@@ -251,14 +259,101 @@ class AccessibilityMenu : AccessibilityService() {
                                     }
 
 
-                                    TextButton({
-                                        disableSelf()
+                                    /*TextButton({
+
+
                                     },
                                         modifier = Modifier.wrapContentSize(),
                                     ) {
                                         //Text("X", fontSize=100.sp, color= Color.Red)
-                                        Icon(Icons.Filled.Close, "Close button", tint=Color.Red,
-                                            modifier = Modifier.size(100.dp))
+
+                                    }*/
+
+                                    var btnAlpha by remember { mutableFloatStateOf(1.0f) }
+
+                                    val clickScope = rememberCoroutineScope()
+
+                                    Box(modifier = Modifier
+                                        .wrapContentSize()
+                                        .noRippleClickable {
+
+                                            clickScope.launch {
+
+                                                btnAlpha = 0.0f
+
+                                                delay(100)
+
+                                                takeScreenshot(
+                                                    Display.DEFAULT_DISPLAY, mainExecutor,
+                                                    object :
+                                                        AccessibilityService.TakeScreenshotCallback {
+                                                        override fun onSuccess(screenshot: ScreenshotResult) {
+                                                            //System.out.println("SUCCESSFULLY SCREENSHOTTED")
+                                                            //Toast.makeText(applicationContext, "SUCCESSFULLY TOOK SCREENSHOT!", Toast.LENGTH_SHORT).show()
+
+                                                            // get bitmap of screen
+                                                            val finalBitmap = Bitmap
+                                                                .wrapHardwareBuffer(
+                                                                    screenshot.hardwareBuffer,
+                                                                    screenshot.colorSpace
+                                                                )!!
+                                                                .copy(Bitmap.Config.RGBA_F16, true)
+
+                                                            // SAVE AS FINAL
+                                                            imgl.withNextImgNum({
+                                                                imgl.saveImage(
+                                                                    finalBitmap,
+                                                                    "image_${it}_final.png",
+                                                                    this@AccessibilityMenu
+                                                                )
+                                                            })
+
+                                                            // show notification
+                                                            sendNotification(
+                                                                "Accessibility Service Usage Saved!",
+                                                                "Used Readr Accessibility Service. Return to app history page to view or clear usage history. "
+                                                            )
+
+                                                            disableSelf()
+
+                                                        }
+
+                                                        override fun onFailure(errorCode: Int) {
+                                                            Log.println(
+                                                                Log.ASSERT,
+                                                                "FINAL SCREENSHOT ERROR",
+                                                                "ERROR CODE: $errorCode"
+                                                            )
+
+                                                            Toast
+                                                                .makeText(
+                                                                    applicationContext,
+                                                                    "FAILED TO SAVE ACCESSIBILITY SERVICE USAGE. ERROR CODE: $errorCode",
+                                                                    Toast.LENGTH_SHORT
+                                                                )
+                                                                .show()
+
+                                                            // show notification
+                                                            sendNotification(
+                                                                "Accessibility Service Usage Not saved :(",
+                                                                "Failed to save usage of accessibility service. The app history page will not show this usage. "
+                                                            )
+
+                                                            disableSelf()
+                                                        }
+                                                    }
+                                                )
+
+                                            }
+
+
+                                        }) {
+                                        Icon(
+                                            Icons.Filled.Close, "Close button", tint = Color.Red,
+                                            modifier = Modifier
+                                                .size(100.dp)
+                                                .alpha(btnAlpha)
+                                        )
                                     }
 
 
@@ -285,7 +380,7 @@ class AccessibilityMenu : AccessibilityService() {
                             Log.d("DISPLAY OVERLAY", "ADDED VIEW")
 
 
-                            Thread {
+                            /*Thread {
 
                                 Thread.sleep(3000) // wait for a while to load yes
 
@@ -343,7 +438,7 @@ class AccessibilityMenu : AccessibilityService() {
                                 )
 
 
-                            }.start()
+                            }.start()*/
 
 
 
