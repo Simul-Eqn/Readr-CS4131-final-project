@@ -28,12 +28,12 @@ class RemovableExpandingRectShape(private val offsetX: Float, private val offset
                 lineTo(x = 0f, y = size.height)*/
 
                 lineTo(x = 0f, y = 0f)
-                lineTo(x = size.width-offsetX+15.0f, y = 0f)
-                lineTo(x = size.width-offsetX, y = 15.0f)
-                lineTo(x = size.width-offsetX, y = offsetY-15.0f)
-                lineTo(x = size.width-offsetX+15.0f, y = offsetY)
-                lineTo(x = size.width-15.0f, y = offsetY)
-                lineTo(x = size.width, y = offsetY-15.0f)
+                lineTo(x = size.width-offsetX+25.0f, y = 0f)
+                lineTo(x = size.width-offsetX, y = 25.0f)
+                lineTo(x = size.width-offsetX, y = offsetY-25.0f)
+                lineTo(x = size.width-offsetX+25.0f, y = offsetY)
+                lineTo(x = size.width-25.0f, y = offsetY)
+                lineTo(x = size.width, y = offsetY-25.0f)
                 lineTo(x = size.width, y = size.height)
                 lineTo(x = 0f, y = size.height)
 

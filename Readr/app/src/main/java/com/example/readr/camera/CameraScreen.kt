@@ -3,6 +3,8 @@
 package com.example.readr.camera
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.util.Log
 import android.view.View
 import android.graphics.Color as androidColor
 import android.view.ViewGroup
@@ -73,6 +75,8 @@ import androidx.compose.ui.window.Dialog
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import com.example.readr.MainActivity
+import com.example.readr.camera.TextRecognitionAnalyzer.Companion.getScreenShot
+import com.example.readr.data.ImageLoader
 import com.example.readr.noRippleClickable
 import com.example.readr.presentation.onscaffold.DDItem
 import com.example.readr.presentation.onscaffold.DisplayTopBar
@@ -155,7 +159,7 @@ private fun CameraContent(overlayContent:@Composable()(PaddingValues)->Unit, set
             modifier = Modifier.fillMaxSize(),
             topBar = {
                 CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-                    DisplayTopBar("Camera Text Scanner", backButtonFunc, dropdownItems)
+                    DisplayTopBar("Camera Text Scanner", {saveToHistory(sendNotification) ; backButtonFunc()}, dropdownItems)
                 }
                      },
             floatingActionButton = {
@@ -206,49 +210,59 @@ private fun CameraContent(overlayContent:@Composable()(PaddingValues)->Unit, set
 
                     key(frozen) {
 
-                        AndroidView(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(paddingValues)
-                                /*.noRippleClickable {
+                        if (frozen == 0) {
+
+                            AndroidView(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(paddingValues)
+                                    /*.noRippleClickable {
                             setFrozen(0)
                         }*/
-                                .noRippleClickable {
-                                    MainActivity.window.decorView.apply {
-                                        systemUiVisibility =
-                                            View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_FULLSCREEN
-                                    }; System.out.println("HIDING NAVBAR")
+                                    .noRippleClickable {
+                                        MainActivity.window.decorView.apply {
+                                            systemUiVisibility =
+                                                View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_FULLSCREEN
+                                        }; System.out.println("HIDING NAVBAR")
+                                    },
+                                factory = { context ->
+                                    PreviewView(context).apply {
+                                        layoutParams = LinearLayout.LayoutParams(
+                                            ViewGroup.LayoutParams.MATCH_PARENT,
+                                            ViewGroup.LayoutParams.MATCH_PARENT
+                                        )
+                                        setBackgroundColor(androidColor.BLACK)
+                                        implementationMode =
+                                            PreviewView.ImplementationMode.COMPATIBLE
+                                        scaleType = PreviewView.ScaleType.FILL_START
+                                    }.also { previewView ->
+                                        startTextRecognition(
+                                            context = context,
+                                            cameraController = cameraController,
+                                            lifecycleOwner = lifecycleOwner,
+                                            previewView = previewView,
+                                            view = overlayContent,
+                                            setView = setOverlayContent,
+                                            topPadding = -paddingValues.calculateTopPadding().value,
+                                            //addOffsetX = addOffsetX,
+                                            //setAddOffsetX = setAddOffsetX,
+                                            //addOffsetY = addOffsetY,
+                                            //setAddOffsetY = setAddOffsetY,
+                                            frozen = frozen,
+                                            setFrozen = setFrozen,
+                                            sendNotification = sendNotification,
+                                            setText = { text = it },
+                                        )
+                                    }
                                 },
-                            factory = { context ->
-                                PreviewView(context).apply {
-                                    layoutParams = LinearLayout.LayoutParams(
-                                        ViewGroup.LayoutParams.MATCH_PARENT,
-                                        ViewGroup.LayoutParams.MATCH_PARENT
-                                    )
-                                    setBackgroundColor(androidColor.BLACK)
-                                    implementationMode = PreviewView.ImplementationMode.COMPATIBLE
-                                    scaleType = PreviewView.ScaleType.FILL_START
-                                }.also { previewView ->
-                                    startTextRecognition(
-                                        context = context,
-                                        cameraController = cameraController,
-                                        lifecycleOwner = lifecycleOwner,
-                                        previewView = previewView,
-                                        view = overlayContent,
-                                        setView = setOverlayContent,
-                                        topPadding = -paddingValues.calculateTopPadding().value,
-                                        //addOffsetX = addOffsetX,
-                                        //setAddOffsetX = setAddOffsetX,
-                                        //addOffsetY = addOffsetY,
-                                        //setAddOffsetY = setAddOffsetY,
-                                        frozen = frozen,
-                                        setFrozen = setFrozen,
-                                        sendNotification = sendNotification,
-                                        setText = { text = it },
-                                    )
-                                }
-                            },
-                        )
+                            )
+
+                        } else {
+                            TextRecognitionAnalyzer.saveInitImage()
+
+                            var recomposeBool by remember { mutableStateOf(false) }
+                            TextRecognitionAnalyzer.ShowFinalView(recomposeBool, { recomposeBool = !recomposeBool })
+                        }
 
                     }
 
@@ -262,7 +276,9 @@ private fun CameraContent(overlayContent:@Composable()(PaddingValues)->Unit, set
 
                     System.out.println("RECOMPOSED OVERLAY CONTENT: ${overlayContent}")
 
-                    overlayContent(paddingValues)
+                    if (frozen == 0) {
+                        overlayContent(paddingValues)
+                    }
 
                     System.out.println("FROZEN: $frozen")
 
@@ -336,6 +352,7 @@ private fun CameraContent(overlayContent:@Composable()(PaddingValues)->Unit, set
 
                                 item { // send to focused reading
                                     Button({
+                                        saveToHistory(sendNotification)
                                         setReadText(text)
                                         goToReadTextScreen()
                                     }) {
@@ -448,14 +465,72 @@ private fun startTextRecognition(
     setText: (String)->Unit,
 ) {
 
-    if (frozen==3) return
+    //if (frozen==3) return
 
-    cameraController.imageAnalysisTargetSize = CameraController.OutputSize(AspectRatio.RATIO_16_9)
+    cameraController.imageAnalysisTargetSize =
+        CameraController.OutputSize(AspectRatio.RATIO_16_9)
     cameraController.setImageAnalysisAnalyzer(
         ContextCompat.getMainExecutor(context),
-        TextRecognitionAnalyzer(view, setView, topPadding, frozen, setFrozen, sendNotification, setText, )
+        TextRecognitionAnalyzer(
+            view,
+            setView,
+            topPadding,
+            frozen,
+            setFrozen,
+            sendNotification,
+            setText,
+        )
     )
 
     cameraController.bindToLifecycle(lifecycleOwner)
     previewView.controller = cameraController
+
+}
+
+fun saveToHistory(sendNotification: (String, String) -> Unit) {
+    // SCREENSHOT AGAIN TO TRY TO SAVE
+    try {
+
+        // OLD: get bitmap of screen
+        //val finalBitmap = TextRecognitionAnalyzer.getScreenShot(MainActivity.window.decorView.rootView)
+
+        val imgl = ImageLoader()
+
+        getScreenShot(MainActivity.window.decorView.rootView) { finalBitmap: Bitmap ->
+            // SAVE AS FINAL
+            imgl.withNextImgNum ({
+                imgl.saveImage(finalBitmap, "image_${it}_final.png")
+            })
+
+
+            // show notification
+            sendNotification(
+                "Camera Usage Saved!",
+                "Used Readr Camera Service. Return to app history page to view or clear usage history. "
+            )
+
+        }
+
+
+    } catch (e: Exception) {
+
+        Log.println(
+            Log.ASSERT,
+            "FINAL SCREENSHOT ERROR",
+            "CLDNT TAKE SCREENSHOT DURING CAMERA USAGE"
+        )
+
+        /*Toast.makeText(
+            MainActivity.context,
+            "FAILED TO SAVE CAMERA USAGE. ",
+            Toast.LENGTH_SHORT
+        ).show()*/
+
+        // show notification
+        sendNotification(
+            "Camera Usage Not saved :(",
+            "Failed to save usage of accessibility service. The app history page will not show this usage. "
+        )
+
+    }
 }

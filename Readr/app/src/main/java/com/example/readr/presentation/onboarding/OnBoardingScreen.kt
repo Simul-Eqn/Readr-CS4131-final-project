@@ -92,6 +92,12 @@ val pages = listOf<Page>(
     ),
 
     Page(
+        title = "Gallery",
+        description = "If you click the button at the bottom left of the camera, will get a dialog to choose an image, and will get to this screen. ",
+        image = R.drawable.gallery,
+    ),
+
+    Page(
         title = "Reading",
         description = "If you choose to send to focused reading, or click the button, you may enter Focused Reading mode. The app will detect if you read the words and mark your progress, while you can use the help or skip buttons below if you are stuck. ",
         image = R.drawable.read_init,

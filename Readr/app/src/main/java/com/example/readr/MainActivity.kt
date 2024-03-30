@@ -81,7 +81,9 @@ import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -182,7 +184,7 @@ class MainActivity : ComponentActivity() {
     // onboarding page numbers, for help
     val onboardingInitPageNum = mapOf<Int, Int?>( // first digit (tens) is outernav, second (ones) is innernav
         // 1 to 2
-        0 to 7, // reading view
+        0 to 8, // reading view
         1 to 1, // dashboard
         2 to 3, // settings
         10 to 4, // camera
@@ -195,12 +197,12 @@ class MainActivity : ComponentActivity() {
 
     val onboardingEndPageNum = mapOf<Int, Int?>( // first digit (tens) is outernav, second (ones) is innernav
         // 1 to 2
-        0 to 8, // reading view
+        0 to 9, // reading view
         1 to 1, // dashboard
         2 to 3, // settings
-        10 to 6, // camera
-        11 to 6, // camera
-        12 to 6, // camera
+        10 to 7, // camera
+        11 to 7, // camera
+        12 to 7, // camera
         20 to 2, // history item
         21 to 2, // history item
         22 to 2, // history item
@@ -512,6 +514,8 @@ class MainActivity : ComponentActivity() {
                     }
                 }*/
 
+            var initHist by remember { mutableStateOf(true) }
+
 
             if (loaded) {
 
@@ -536,7 +540,7 @@ class MainActivity : ComponentActivity() {
                                     true -> ShowView(viewNo, {
                                         outerNavPageNo = it
                                         viewNo = it
-                                    }, recomposeBool, ::recomposeOuter, firstOne)
+                                    }, recomposeBool, ::recomposeOuter, firstOne, initHist, {initHist = it})
 
                                     false -> OnBoardingScreen(
                                         onboardingInitPage,
@@ -585,7 +589,8 @@ class MainActivity : ComponentActivity() {
 
     @OptIn(ExperimentalPermissionsApi::class, ExperimentalFoundationApi::class)
     @Composable
-    fun ShowView(viewNo:Int, setViewNo:(Int)->Unit, recomposeBool: Boolean, recomposeOuter:()->Unit, firstOne:Boolean=false) {
+    fun ShowView(viewNo:Int, setViewNo:(Int)->Unit, recomposeBool: Boolean, recomposeOuter:()->Unit, firstOne:Boolean=false,
+    initHist:Boolean, setInitHist:(Boolean)->Unit) {
 
         if (!firstOne) {
             LocalReplacedTextStyles.current.setOverlayTextSize(Variables.overlayTextSize)
@@ -691,7 +696,7 @@ class MainActivity : ComponentActivity() {
 
                             } else {
 
-                                Column() {
+                                Column {
 
                                     LazyColumn(
                                         state = listState,
@@ -722,12 +727,28 @@ class MainActivity : ComponentActivity() {
 
                                     }
 
+
+                                    var histToggle by remember { mutableStateOf(false) }
+
                                     if (pagerState.currentPage == 1) {
-                                        ShowHistory(toggle,
-                                            { toggle = !toggle },
+                                        ShowHistory(histToggle,
+                                            { histToggle = !histToggle ; System.out.println("RECOMPOSED IN FUNCTIOn") },
                                             { recomposeOuter() },
                                             { setViewNo(2) })
-                                        toggle = !toggle
+
+                                        if (initHist) {
+                                            val initHistScope = rememberCoroutineScope()
+
+                                            imgl.withNextImgNum({
+                                                initHistScope.launch {
+                                                    while (loadedHistItems != 2 * it) delay(100)
+                                                    histToggle = !histToggle
+                                                    setInitHist(false)
+                                                }
+                                            })
+
+                                        }
+                                        System.out.println("$histToggle")
                                     }
 
                                 }
@@ -790,7 +811,7 @@ class MainActivity : ComponentActivity() {
                         }
                     ,
                 ) {
-                    HistoryItem(histItemNum).ShowDetails()
+                    histItems[histItemNum].ShowDetails(recomposeOuter)
                 }
             }
         }
@@ -1382,7 +1403,7 @@ class MainActivity : ComponentActivity() {
 
                             }
 
-                            this@MainActivity.loadHistItems{ System.out.println("LOADED YAY"); recompose() }
+                            this@MainActivity.loadHistItems { System.out.println("LOADED YAY"); recompose() }
                         }
                 )
 
@@ -1395,6 +1416,7 @@ class MainActivity : ComponentActivity() {
                         .noRippleClickable {
                             // confirmation dialog
                             showConfirmationDialog = true
+                            System.out.println("CONFIMRATIONDIALOG")
                             recompose()
                         },
                 )
@@ -1417,23 +1439,26 @@ class MainActivity : ComponentActivity() {
         Spacer(modifier = Modifier.height(16.dp))
 
 
+        key(histItems) {
 
-        System.out.println("BOXING YES")
 
-        LazyVerticalGrid(
-            GridCells.Adaptive(minSize = HistoryItem.width),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-            modifier = Modifier.forceRecomposeWith(showConfirmationDialog).forceRecomposeWith(recomposeBool)
-        ) {
+            System.out.println("BOXING YES $recomposeBool")
 
-            items(histItems.size) {
-                histItems[histItems.size - it - 1].ShowView( {
-                    histItemNum = histItems.size - it - 1
-                    showHistoryItemView()
-                }, recompose) // so that highest num, latest, is shown first
+            LazyVerticalGrid(
+                GridCells.Adaptive(minSize = HistoryItem.width),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier
+            ) {
+
+                items(histItems.size) {
+                    histItems[histItems.size - it - 1].ShowView({
+                        histItemNum = histItems.size - it - 1
+                        showHistoryItemView()
+                    }, recompose) // so that highest num, latest, is shown first
+                }
             }
-        }
 
+        }
 
 
 
@@ -1443,6 +1468,7 @@ class MainActivity : ComponentActivity() {
             AlertDialog(
                 onDismissRequest = {
                     showConfirmationDialog = false
+                    System.out.println("IN CONFIRMATIONDIALOG")
                     recompose()
                 },
                 title = {
@@ -1456,7 +1482,8 @@ class MainActivity : ComponentActivity() {
                         imgl.deleteAllImages {
                             histItems.clear()
                             showConfirmationDialog = false
-                        recomposeOuter()
+                            recomposeOuter()
+                            System.out.println("IN CONFIRMATIONDIALOG CONFIRMED")
                             recompose()
                         }
                     },
@@ -1470,6 +1497,7 @@ class MainActivity : ComponentActivity() {
                 dismissButton = {
                     Button({
                         showConfirmationDialog = false
+                        System.out.println("IN CONFIRMATIONDIALOG DISMISSBUTTON")
                         recompose()
                     },
                         colors = ButtonDefaults.buttonColors(

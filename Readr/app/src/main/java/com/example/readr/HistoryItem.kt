@@ -23,6 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -38,6 +39,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.readr.data.ImageLoader
 import com.example.readr.ui.theme.LocalTextStyles
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 class HistoryItem(val num:Int) {
 
@@ -47,20 +50,27 @@ class HistoryItem(val num:Int) {
     }
 
     private val imgl = ImageLoader()
-    private lateinit var init_bm: ImageBitmap
-    private lateinit var final_bm: ImageBitmap
+    private var init_bm: ImageBitmap? = null
+    private var final_bm: ImageBitmap? = null
 
     init {
-        imgl.LoadImageBytes("image_${num}_init.png", { init_bm = it ; MainActivity.loadedHistItems++ })
-        imgl.LoadImageBytes("image_${num}_final.png", { final_bm = it ; MainActivity.loadedHistItems++ })
+        imgl.LoadImageBytes("image_${num}_init.png", { System.out.println("LOADING INIT $num") ; init_bm = it ; System.out.println("$init_bm") ; MainActivity.loadedHistItems++ })
+        imgl.LoadImageBytes("image_${num}_final.png", { System.out.println("LOADING FINAL $num") ; final_bm = it ; System.out.println("$final_bm") ; MainActivity.loadedHistItems++ })
     }
 
     @Composable
     fun ShowView(showDetails:()->Unit, onFailure:()->Unit) {
-        if ((!(::init_bm.isInitialized)) or (!(::final_bm.isInitialized))) {
-            onFailure()
+        //if ((!(::init_bm.isInitialized)) or (!(::final_bm.isInitialized))) {
+        if ((init_bm == null) or (final_bm == null)) {
+            rememberCoroutineScope().launch {
+                System.out.println("ERROR?")
+                delay(1000)
+                onFailure()
+            }
             return
         }
+
+        System.out.println("$num : #$init_bm and $final_bm")
 
         Box(
             modifier = Modifier.sizeIn(
@@ -80,8 +90,8 @@ class HistoryItem(val num:Int) {
             ) {
 
 
-                Image(init_bm, "", modifier = Modifier.width(width).height(height).padding(12.dp), colorFilter = ColorFilter.tint(
-                    MaterialTheme.colorScheme.onBackground), contentScale = ContentScale.Crop)
+                Image(init_bm!!, "", modifier = Modifier.width(width).height(height).padding(12.dp),
+                    contentScale = ContentScale.Crop)
 
 
                 // can add label of time if possible yes
@@ -98,7 +108,19 @@ class HistoryItem(val num:Int) {
     }
 
     @Composable
-    fun ShowDetails() {
+    fun ShowDetails(onFailure: ()->Unit ) {
+        /*if ((init_bm == null) or (final_bm == null)) {
+            rememberCoroutineScope().launch {
+                System.out.println("ERROR?")
+                delay(1000)
+                onFailure()
+            }
+            return
+        }*/
+
+        //System.out.println("SHOWING DETAILS FOR NUM $num W")
+        //System.out.println("MA LHA: ${MainActivity.loadedHistItems}")
+        //System.out.println("$init_bm and $final_bm")
         LazyColumn(
             modifier = Modifier
                 .fillMaxWidth()
@@ -113,7 +135,7 @@ class HistoryItem(val num:Int) {
 
                 Spacer(Modifier.height(4.dp))
 
-                Image(init_bm, "Image of screen before using service")
+                Image(init_bm!!, "Image of screen before using service")
             }
 
             item {
@@ -126,7 +148,7 @@ class HistoryItem(val num:Int) {
 
                 Spacer(Modifier.height(4.dp))
 
-                Image(final_bm, "Image of screen after using service")
+                Image(final_bm!!, "Image of screen after using service")
             }
 
         }

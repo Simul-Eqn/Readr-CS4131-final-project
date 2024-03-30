@@ -4,6 +4,7 @@ package com.example.readr.camera
 
 import android.graphics.Bitmap
 import android.graphics.ImageFormat
+import android.graphics.Matrix
 import android.graphics.Rect
 import android.graphics.YuvImage
 import android.media.Image
@@ -16,28 +17,48 @@ import androidx.annotation.OptIn
 import androidx.camera.core.ExperimentalGetImage
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowRightAlt
+import androidx.compose.material.icons.filled.Camera
+import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
@@ -49,6 +70,7 @@ import com.example.readr.data.ImageLoader
 import com.example.readr.forceRecomposeWith
 import com.example.readr.noRippleClickable
 import com.example.readr.presentation.ChangeReplacedTextSizeSlider
+import com.example.readr.ui.theme.LocalTextStyles
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.Text
 import com.google.mlkit.vision.text.TextRecognition
@@ -129,15 +151,304 @@ class TextRecognitionAnalyzer(
 
         var addOffsetX = 0f
         var addOffsetY = 0f
+
+        lateinit var prevBitmap: Bitmap
+
+        fun saveInitImage() {
+            val bitmap = prevBitmap.copy(Bitmap.Config.RGBA_F16, true)
+            val imgl = ImageLoader()
+
+            // SAVE THIS IMAGE AS INITIAL IMAGE
+            imgl.withNextImgNum({
+                imgl.saveImage(bitmap, "image_${it}_init.png", MainActivity.context)
+                System.out.println("TRYING TO SAVE INITIAL IMG YES")
+            })
+
+            System.out.println("TRYYY")
+        }
+
+        @Composable
+        fun ShowFinalView(recomposeBool:Boolean, recompose:()->Unit) {
+
+            var imgView by remember { mutableStateOf<@Composable()()->Unit>({}) }
+            val setImgView: (@Composable()()->Unit)->Unit = { imgView = it }
+
+            var view by remember { mutableStateOf<@Composable()()->Unit>({}) }
+            val setView: (@Composable()()->Unit)->Unit = { view = it }
+
+            var view2 by remember { mutableStateOf<@Composable()()->Unit>({}) }
+            val setView2: (@Composable()()->Unit)->Unit = { view2 = it }
+
+            setImgView {
+                var imgCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
+
+
+                Image(
+                    prevBitmap.asImageBitmap(),
+                    contentDescription = "",
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .onGloballyPositioned { imgCoords = it }
+                    ,
+                )
+
+
+                var text by remember { mutableStateOf("") }
+
+
+                var showTextDialog by remember { mutableStateOf(false) }
+                ShowTextDialog(showTextDialog, text, {
+                    showTextDialog = false
+                })
+
+                val imgl = ImageLoader()
+
+                val bitmap = prevBitmap.copy(Bitmap.Config.RGBA_F16, true)
+                val textRecognizer: TextRecognizer =
+                    TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS) // TextRecognizer.Builder(applicationContext).build()
+                val img = InputImage.fromBitmap(bitmap, 0)
+
+
+
+
+                setView {
+
+                    textRecognizer.process(img)
+                        .addOnSuccessListener { visionText ->
+
+                            // display them all
+                            val dm: DisplayMetrics = MainActivity.context.resources.displayMetrics
+
+                            fun pxToDP(px: Int): Int {
+                                return Math.round(px / dm.density)
+                            }
+
+                            val offsetYpx = bitmap.height - dm.heightPixels // this is in px
+                            val offsetY = pxToDP(offsetYpx) // MUST CONVERT TO DP
+
+                            //System.out.println("OFFSETY: $offsetY")
+
+                            var tempText = ""
+                            for (tbidx in visionText.textBlocks.indices) {
+                                tempText += visionText.textBlocks[tbidx].text + "\n\n"
+                            }
+                            text = tempText
+
+                            setView2 {
+
+                                var addOffsetX by remember { mutableStateOf(TextRecognitionAnalyzer.addOffsetX) }
+                                var addOffsetY by remember { mutableStateOf(TextRecognitionAnalyzer.addOffsetY) }
+
+                                @Composable
+                                fun DisplayText(
+                                    addOffsetX: Float, setAddOffsetX: (Float) -> Unit,
+                                    addOffsetY: Float, setAddOffsetY: (Float) -> Unit
+                                ) {
+
+                                    fun pxToDP(px: Double): Int {
+                                        return (px / (dm.densityDpi / DisplayMetrics.DENSITY_DEFAULT)).roundToInt()
+                                    }
+
+                                    fun pxToDP(px: Int): Int {
+                                        return (px.toDouble() / (dm.densityDpi / DisplayMetrics.DENSITY_DEFAULT)).roundToInt()
+                                    }
+
+
+                                    val scale = (imgCoords!!.size.width).toDouble() / bitmap.width.toDouble()
+                                    //System.out.println("SCALE: $scale")
+
+
+                                    // show compose stuff
+
+                                    var fontSize by remember(Variables.overlayTextSize) {
+                                        mutableFloatStateOf(
+                                            Variables.overlayTextSize
+                                        )
+                                    }
+
+                                    // get all the items and show
+                                    Box(modifier = Modifier.wrapContentSize().offset(addOffsetX.dp, (-addOffsetY).dp)) {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                            //.forceRecomposeWith(recomposeBool)
+                                        ) {
+                                            for (textBlock in visionText.textBlocks) {
+                                                System.out.println("REDRAWING TEXTBLOCKS")
+                                                Button(
+                                                    {},
+                                                    modifier = Modifier
+                                                        .offset(
+                                                            //(pxToDP(textBlock.boundingBox!!.left * scale) + addOffsetX).dp,
+                                                            //(pxToDP(textBlock.boundingBox!!.top * scale) - (offsetY + addOffsetY)).dp
+                                                            (pxToDP(textBlock.boundingBox!!.left * scale)).dp,
+                                                            (pxToDP(textBlock.boundingBox!!.top * scale) - offsetY).dp
+                                                        )
+                                                        .padding(0.dp),
+                                                    shape = RectangleShape,
+                                                    contentPadding = PaddingValues(0.dp),
+                                                    colors = ButtonDefaults.buttonColors(
+                                                        containerColor = MaterialTheme.colorScheme.background
+                                                    ),
+                                                ) {
+                                                    Text(
+                                                        textBlock.text,
+                                                        modifier = Modifier.padding(0.dp)
+                                                            .forceRecomposeWith(MaterialTheme.colorScheme.background),
+                                                        style = TextStyle(
+                                                            color = if (MainActivity.isDarkTheme) Color.White
+                                                            else Color.Black,
+                                                            fontSize = fontSize.sp,
+                                                            fontFamily = Variables.overlayFontFamily
+                                                        )
+                                                    )
+                                                }
+                                            }
+
+                                        }
+
+                                    }
+
+                                    Box(
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentAlignment = Alignment.TopCenter
+                                    ) {
+                                        ChangeReplacedTextSizeSlider(fontSize) {
+                                            fontSize = it
+                                            Variables.overlayTextSize = it
+                                        }
+                                    }
+
+
+                                    // vertical adjustment slider - addOffsetY
+                                    Box(
+                                        contentAlignment = Alignment.CenterEnd,
+                                        modifier = Modifier.fillMaxSize(),
+                                        //.padding(it)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier.wrapContentSize(),
+                                            //.background(Color.Green)
+                                        ) {
+                                            val h =
+                                                pxToDP(dm.heightPixels).toFloat() - offsetY - 32.0f
+                                            Slider(
+                                                modifier = Modifier
+                                                    .graphicsLayer {
+                                                        rotationZ = 270f
+                                                        transformOrigin = TransformOrigin(0f, 0f)
+                                                    }
+                                                    .layout { measurable, constraints ->
+                                                        val placeable = measurable.measure(
+                                                            Constraints(
+                                                                minWidth = constraints.minHeight,
+                                                                maxWidth = constraints.maxHeight,
+                                                                minHeight = constraints.minWidth,
+                                                                maxHeight = constraints.maxHeight,
+                                                            )
+                                                        )
+                                                        layout(placeable.height, placeable.width) {
+                                                            placeable.place(-placeable.width, 0)
+                                                        }
+                                                    },
+                                                value = addOffsetY,
+                                                onValueChange = {
+                                                    setAddOffsetY(it)
+                                                },
+                                                //valueRange = -600f..600f,
+                                                //steps = 199,
+                                                valueRange = -(h / 2)..(h / 2),
+                                                steps = 249,
+                                            )
+                                        }
+                                    }
+
+
+                                    // horizontal adjustment slider - addOffsetX
+                                    Box(
+                                        contentAlignment = Alignment.BottomCenter,
+                                        modifier = Modifier.fillMaxSize().padding(bottom=80.dp),
+                                        //.padding(it)
+                                    ) {
+                                        val w = (pxToDP(dm.widthPixels) - 32).toFloat()
+                                        Box(
+                                            modifier = Modifier.wrapContentSize(),
+                                            //.background(Color.Green)
+                                        ) {
+                                            Slider(
+                                                value = addOffsetX,
+                                                onValueChange = {
+                                                    setAddOffsetX(it)
+                                                },
+                                                //valueRange = -400f..400f,
+                                                //steps = 199,
+                                                valueRange = -(w / 2)..(w / 2),
+                                                steps = 249
+                                            )
+                                        }
+                                    }
+
+                                }
+
+
+                                DisplayText(
+                                    addOffsetX,
+                                    { TextRecognitionAnalyzer.addOffsetX = it ; addOffsetX = it ; recompose() },
+                                    addOffsetY,
+                                    { TextRecognitionAnalyzer.addOffsetY = it ; addOffsetY = it ; recompose() })
+
+
+
+
+                            }
+
+
+
+                            Log.d("DISPLAY OVERLAY", "ADDED VIEW")
+
+
+
+                        }
+                        .addOnFailureListener {
+                            System.out.println("UGHHHH DETECT ERRROR PEUOFHPWOUSJFPWEOFU:LD")
+                            Log.e("DETECT ERROR", it.message, it)
+                        }
+
+                }
+
+            }
+
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .forceRecomposeWith(recomposeBool)
+                    ,
+                contentAlignment = Alignment.BottomCenter
+            ) {
+
+                imgView()
+                view()
+                view2()
+
+            }
+
+
+        }
+
+        fun rotateBitmap(source: Bitmap, degrees: Float): Bitmap {
+            val matrix = Matrix()
+            matrix.postRotate(degrees)
+            return Bitmap.createBitmap(
+                source, 0, 0, source.width, source.height, matrix, true
+            )
+        }
     }
 
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val textRecognizer: TextRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
 
     val imgl = ImageLoader()
-
-
-
 
     var notifAlready = false
 
@@ -151,20 +462,21 @@ class TextRecognitionAnalyzer(
 
             val imgWidth = mediaImage.width
 
-            if (frozen == 1) {
-                // save image to firebase as init image
+            val data = NV21toJPEG(
+                YUV_420_888toNV21(mediaImage),
+                mediaImage.width, mediaImage.height,
+            )
 
-                val data = NV21toJPEG(
-                    YUV_420_888toNV21(mediaImage),
-                    mediaImage.width, mediaImage.height,
-                )
+            /*if (frozen == 1) {
 
                 // save to firebase storage
                 imgl.withNextImgNum ({
                     imgl.saveImage(data, "image_${it}_init.png")
                 })
 
-            }
+            }*/
+
+            prevBitmap = rotateBitmap(imgl.ByteArrayToBitmap(data), 90f)
 
             suspendCoroutine { continuation ->
 
@@ -217,14 +529,8 @@ class TextRecognitionAnalyzer(
 
 
                                 var scale = dm.widthPixels.toDouble() / imgWidth.toDouble()
-                                scale = scale * 1.35
+                                //scale = scale * 1.35
                                 System.out.println("SCALE: $scale")
-
-                                //val offsetYpx = mediaImage.height - dm.heightPixels // this is in px
-                                //val offsetY = pxToDP(offsetYpx) // MUST CONVERT TO DP
-
-                                //System.out.println("OFFSETY: ${offsetY + addOffsetY}")
-
 
                                 // show compose stuff
 
@@ -295,47 +601,46 @@ class TextRecognitionAnalyzer(
                                 }
 
 
-                                if (frozen == 1) {
-                                    // vertical adjustment slider - addOffsetY
+                                // vertical adjustment slider - addOffsetY
+                                Box(
+                                    contentAlignment = Alignment.CenterEnd,
+                                    modifier = Modifier.fillMaxSize().padding(it),
+                                ) {
                                     Box(
-                                        contentAlignment = Alignment.CenterEnd,
-                                        modifier = Modifier.fillMaxSize().padding(it),
+                                        modifier = Modifier.wrapContentSize(),
+                                        //.background(Color.Green)
                                     ) {
-                                        Box(
-                                            modifier = Modifier.wrapContentSize(),
-                                            //.background(Color.Green)
-                                        ) {
-                                            val h = pxToDP(dm.heightPixels) - offsetY - 32
-                                            Slider(
-                                                modifier = Modifier
-                                                    .graphicsLayer {
-                                                        rotationZ = 270f
-                                                        transformOrigin = TransformOrigin(0f, 0f)
-                                                    }
-                                                    .layout { measurable, constraints ->
-                                                        val placeable = measurable.measure(
-                                                            Constraints(
-                                                                minWidth = constraints.minHeight,
-                                                                maxWidth = constraints.maxHeight,
-                                                                minHeight = constraints.minWidth,
-                                                                maxHeight = constraints.maxHeight,
-                                                            )
+                                        val h = pxToDP(dm.heightPixels) - offsetY - 32
+                                        Slider(
+                                            modifier = Modifier
+                                                .graphicsLayer {
+                                                    rotationZ = 270f
+                                                    transformOrigin = TransformOrigin(0f, 0f)
+                                                }
+                                                .layout { measurable, constraints ->
+                                                    val placeable = measurable.measure(
+                                                        Constraints(
+                                                            minWidth = constraints.minHeight,
+                                                            maxWidth = constraints.maxHeight,
+                                                            minHeight = constraints.minWidth,
+                                                            maxHeight = constraints.maxHeight,
                                                         )
-                                                        layout(placeable.height, placeable.width) {
-                                                            placeable.place(-placeable.width, 0)
-                                                        }
-                                                    },
-                                                value = addOffsetY,
-                                                onValueChange = {
-                                                    addOffsetY = it
+                                                    )
+                                                    layout(placeable.height, placeable.width) {
+                                                        placeable.place(-placeable.width, 0)
+                                                    }
                                                 },
-                                                //valueRange = -600f..600f,
-                                                //steps = 199,
-                                                valueRange = -(h / 2)..(h / 2),
-                                                steps = 249,
-                                            )
-                                        }
+                                            value = addOffsetY,
+                                            onValueChange = {
+                                                addOffsetY = it
+                                            },
+                                            //valueRange = -600f..600f,
+                                            //steps = 199,
+                                            valueRange = -(h / 2)..(h / 2),
+                                            steps = 249,
+                                        )
                                     }
+
 
 
                                     // horizontal adjustment slider - addOffsetX
@@ -368,6 +673,7 @@ class TextRecognitionAnalyzer(
 
                         }
 
+                        /*
                         if (frozen == 1) {
                             setFrozen(2) // go to next stage: capturing final
                         }
@@ -434,6 +740,7 @@ class TextRecognitionAnalyzer(
 
                         }
 
+                         */
 
 
 
@@ -454,5 +761,8 @@ class TextRecognitionAnalyzer(
             imageProxy.close()
         }
     }
+
+
+
 }
 
