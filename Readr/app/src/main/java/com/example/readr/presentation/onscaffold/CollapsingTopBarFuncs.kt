@@ -1,16 +1,19 @@
 package com.example.readr.presentation.onscaffold
 
 
+import android.view.View
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.MoreVert
@@ -34,17 +37,22 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import com.example.readr.MainActivity
 import com.example.readr.Variables
 import com.example.readr.forceRecomposeWith
+import com.example.readr.noRippleClickable
+import com.example.readr.openDyslexic
 import com.example.readr.ui.theme.LocalSpacings
 import com.example.readr.ui.theme.LocalTextStyles
 
 class CollapsingTopBarFuncs {
 }
 
-val COLLAPSED_TOP_BAR_HEIGHT = 60.dp
+val COLLAPSED_TOP_BAR_HEIGHT = 70.dp
 val EXPANDED_TOP_BAR_HEIGHT = 300.dp
 
 @Composable
@@ -111,7 +119,7 @@ fun CollapsedTopBar(
             modifier = Modifier.align(Alignment.BottomStart).forceRecomposeWith(textScale),
             visible = isCollapsed
         ) {
-            Text(text = title, color = MaterialTheme.colorScheme.primary, style = LocalTextStyles.current.l,
+            Text(text = title, color = MaterialTheme.colorScheme.primary, style = TextStyle(fontSize=20.sp, fontFamily= openDyslexic),
                 modifier = Modifier.forceRecomposeWith(textScale))
         }
 
@@ -172,7 +180,10 @@ fun WrapInColllapsedTopBar(padding: PaddingValues,
     Surface(
         modifier = Modifier
             .fillMaxSize()
-            .padding(padding),
+            .padding(padding)
+            .consumeWindowInsets(padding)
+            .noRippleClickable { MainActivity.window.decorView.apply { systemUiVisibility = View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_FULLSCREEN } ; System.out.println("HIDING NAVBAR")}
+        ,
         color = MaterialTheme.colorScheme.background
     ) {
 

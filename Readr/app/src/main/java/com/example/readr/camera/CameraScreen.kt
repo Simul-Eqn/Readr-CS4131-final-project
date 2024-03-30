@@ -3,6 +3,7 @@
 package com.example.readr.camera
 
 import android.content.Context
+import android.view.View
 import android.graphics.Color as androidColor
 import android.view.ViewGroup
 import android.widget.LinearLayout
@@ -20,10 +21,13 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -32,15 +36,20 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowRightAlt
 import androidx.compose.material.icons.filled.Camera
 import androidx.compose.material.icons.filled.CopyAll
+import androidx.compose.material.icons.filled.Photo
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
+import androidx.compose.material3.FabPosition
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
@@ -48,12 +57,16 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
@@ -71,24 +84,43 @@ import kotlin.random.Random
 @Composable
 fun CameraScreen(backButtonFunc: () -> Unit, sendNotification: (String, String) -> Unit,
                  setReadText:(String)->Unit, goToReadTextScreen:()->Unit,
-                 setOnback:((()->Unit)?)->Unit, dropdownItems: MutableList<DDItem> ) {
+                 setOnback:((()->Unit)?)->Unit, dropdownItems: MutableList<DDItem>,
+                 camera:Boolean, setCamera:(Boolean)->Unit, ) {
 
     var overlayContent : @Composable()(PaddingValues)->Unit by remember { mutableStateOf({}) }
 
     //var addOffsetY:Float by remember { mutableFloatStateOf(0f) }
     //var addOffsetX:Float by remember { mutableFloatStateOf(0f) }
 
-    var frozen:Int by remember { mutableIntStateOf(0) } // 0 means not frozen, 1 means capturing init, 2 means capturing final, 3 means captured and frozen.
 
-    when (frozen) {
-        0 -> setOnback(null) // reset to default onback
-        else -> setOnback{ frozen = 0 }
+    ProvideTextStyle(TextStyle(color= MaterialTheme.colorScheme.onBackground)) {
+
+        if (camera) { // camera
+
+            var frozen: Int by remember { mutableIntStateOf(0) } // 0 means not frozen, 1 means capturing init, 2 means capturing final, 3 means captured and frozen.
+
+            CameraContent(
+                overlayContent,
+                { overlayContent = it },
+                // addOffsetX , { addOffsetX = it }, addOffsetY , { addOffsetY = it },
+                backButtonFunc,
+                frozen,
+                { frozen = it },
+                sendNotification,
+                setReadText,
+                goToReadTextScreen,
+                dropdownItems,
+                { setCamera(false) },
+                setOnback = setOnback,
+            )
+
+        } else { // gallery
+            setOnback({ setCamera(true) })
+            GalleryScreen({ setCamera(true) }, dropdownItems, sendNotification, setReadText,
+                goToReadTextScreen, { setOnback { setCamera(true); if (it != null) it() } })
+        }
+
     }
-
-    CameraContent( overlayContent , { overlayContent = it } ,
-        // addOffsetX , { addOffsetX = it }, addOffsetY , { addOffsetY = it },
-        backButtonFunc,
-        frozen, { frozen = it }, sendNotification, setReadText, goToReadTextScreen, dropdownItems )
 }
 
 @Composable
@@ -97,7 +129,13 @@ private fun CameraContent(overlayContent:@Composable()(PaddingValues)->Unit, set
                           backButtonFunc: () -> Unit,
                           frozen: Int, setFrozen: (Int)->Unit, sendNotification: (String, String) -> Unit,
                           setReadText:(String)->Unit, goToReadTextScreen:()->Unit,
-                          dropdownItems: MutableList<DDItem>, ) {
+                          dropdownItems: MutableList<DDItem>, switchToGallery:()->Unit,
+                          setOnback:((()->Unit)?)->Unit) {
+
+    when (frozen) {
+        0 -> setOnback(null) // reset to default onback
+        else -> setOnback { setFrozen(0) }
+    }
 
     val context: Context = LocalContext.current
     val lifecycleOwner: LifecycleOwner = LocalLifecycleOwner.current
@@ -112,58 +150,109 @@ private fun CameraContent(overlayContent:@Composable()(PaddingValues)->Unit, set
     })
 
 
-    Scaffold(
-        modifier = Modifier.fillMaxSize(),
-        topBar = { DisplayTopBar("Text Scanner", backButtonFunc, dropdownItems) },
-    ) { paddingValues: PaddingValues ->
-        Box(
+    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+        Scaffold(
             modifier = Modifier.fillMaxSize(),
-            contentAlignment = androidx.compose.ui.Alignment.BottomCenter
-        ) {
-
-            key(frozen) {
-
-                AndroidView(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(paddingValues)
-                        /*.noRippleClickable {
-                            setFrozen(0)
-                        }*/,
-                    factory = { context ->
-                        PreviewView(context).apply {
-                            layoutParams = LinearLayout.LayoutParams(
-                                ViewGroup.LayoutParams.MATCH_PARENT,
-                                ViewGroup.LayoutParams.MATCH_PARENT
-                            )
-                            setBackgroundColor(androidColor.BLACK)
-                            implementationMode = PreviewView.ImplementationMode.COMPATIBLE
-                            scaleType = PreviewView.ScaleType.FILL_START
-                        }.also { previewView ->
-                            startTextRecognition(
-                                context = context,
-                                cameraController = cameraController,
-                                lifecycleOwner = lifecycleOwner,
-                                previewView = previewView,
-                                view = overlayContent,
-                                setView = setOverlayContent,
-                                topPadding = -paddingValues.calculateTopPadding().value,
-                                //addOffsetX = addOffsetX,
-                                //setAddOffsetX = setAddOffsetX,
-                                //addOffsetY = addOffsetY,
-                                //setAddOffsetY = setAddOffsetY,
-                                frozen = frozen,
-                                setFrozen = setFrozen,
-                                sendNotification = sendNotification,
-                                setText = { text = it },
+            topBar = {
+                CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                    DisplayTopBar("Camera Text Scanner", backButtonFunc, dropdownItems)
+                }
+                     },
+            floatingActionButton = {
+                if (frozen == 0) {
+                    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                        // gallery button
+                        Button(
+                            onClick = { switchToGallery() },
+                            shape = RoundedCornerShape(8.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = androidx.compose.ui.graphics.Color.LightGray),
+                            modifier = Modifier
+                                .offset(30.dp, (-30).dp)
+                                .border(
+                                    5.dp,
+                                    color = androidx.compose.ui.graphics.Color.Gray,
+                                    shape = RoundedCornerShape(8.dp),
+                                )
+                                .size(80.dp)
+                            ,
+                            contentPadding = PaddingValues(0.dp),
+                        ) {
+                            Icon(
+                                Icons.Filled.Photo,
+                                "Gallery upload button",
+                                modifier = Modifier.size(60.dp)
                             )
                         }
-                    },
-                )
 
-            }
+                    }
 
-            /*Text(
+                }
+
+            },
+            floatingActionButtonPosition = FabPosition.End,
+        ) { paddingValues: PaddingValues ->
+            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+
+                Box(
+                    modifier = Modifier.fillMaxSize()
+                        .noRippleClickable {
+                            MainActivity.window.decorView.apply {
+                                systemUiVisibility =
+                                    View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_FULLSCREEN
+                            }; System.out.println("HIDING NAVBAR")
+                        },
+                    contentAlignment = androidx.compose.ui.Alignment.BottomCenter
+                ) {
+
+                    key(frozen) {
+
+                        AndroidView(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(paddingValues)
+                                /*.noRippleClickable {
+                            setFrozen(0)
+                        }*/
+                                .noRippleClickable {
+                                    MainActivity.window.decorView.apply {
+                                        systemUiVisibility =
+                                            View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_FULLSCREEN
+                                    }; System.out.println("HIDING NAVBAR")
+                                },
+                            factory = { context ->
+                                PreviewView(context).apply {
+                                    layoutParams = LinearLayout.LayoutParams(
+                                        ViewGroup.LayoutParams.MATCH_PARENT,
+                                        ViewGroup.LayoutParams.MATCH_PARENT
+                                    )
+                                    setBackgroundColor(androidColor.BLACK)
+                                    implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+                                    scaleType = PreviewView.ScaleType.FILL_START
+                                }.also { previewView ->
+                                    startTextRecognition(
+                                        context = context,
+                                        cameraController = cameraController,
+                                        lifecycleOwner = lifecycleOwner,
+                                        previewView = previewView,
+                                        view = overlayContent,
+                                        setView = setOverlayContent,
+                                        topPadding = -paddingValues.calculateTopPadding().value,
+                                        //addOffsetX = addOffsetX,
+                                        //setAddOffsetX = setAddOffsetX,
+                                        //addOffsetY = addOffsetY,
+                                        //setAddOffsetY = setAddOffsetY,
+                                        frozen = frozen,
+                                        setFrozen = setFrozen,
+                                        sendNotification = sendNotification,
+                                        setText = { text = it },
+                                    )
+                                }
+                            },
+                        )
+
+                    }
+
+                    /*Text(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(androidx.compose.ui.graphics.Color.White)
@@ -171,93 +260,126 @@ private fun CameraContent(overlayContent:@Composable()(PaddingValues)->Unit, set
                 text = detectedText,
             )*/
 
-            System.out.println("RECOMPOSED OVERLAY CONTENT: ${overlayContent}")
+                    System.out.println("RECOMPOSED OVERLAY CONTENT: ${overlayContent}")
 
-            overlayContent(paddingValues)
+                    overlayContent(paddingValues)
 
-            System.out.println("FROZEN: $frozen")
+                    System.out.println("FROZEN: $frozen")
 
-            Box(modifier = Modifier
-                .padding(paddingValues)
-                .wrapContentSize()) {
-
-                if (frozen == 0) {
-
-                    Box(modifier = Modifier.wrapContentSize().padding(bottom = 48.dp)) {
-                        // freeze button
-                        Button(
-                            onClick = { setFrozen(1); System.out.println("IN BUTTON FROZEN: $frozen") },
-                            shape = CircleShape,
-                            colors = ButtonDefaults.buttonColors(containerColor = androidx.compose.ui.graphics.Color.LightGray),
-                            modifier = Modifier
-                                .border(
-                                    5.dp,
-                                    color = androidx.compose.ui.graphics.Color.Gray,
-                                    shape = CircleShape
-                                )
-                                .size(80.dp),
-                            contentPadding = PaddingValues(0.dp),
-                        ) {
-                            Icon(
-                                Icons.Filled.Camera,
-                                "Camera capture button",
-                                modifier = Modifier.size(60.dp)
-                            )
+                    Box(modifier = Modifier
+                        .padding(paddingValues)
+                        .wrapContentSize()
+                        .noRippleClickable {
+                            MainActivity.window.decorView.apply {
+                                systemUiVisibility =
+                                    View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_FULLSCREEN
+                            }; System.out.println("HIDING NAVBAR")
                         }
-
-                    }
-
-                } else {
-                    // buttons
-                    LazyRow(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .wrapContentHeight()
-                            .background(androidx.compose.ui.graphics.Color.White)
-                            .padding(16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
 
-                        item { // retake button
-                            Button({ setFrozen(0) }) {
-                                Row(modifier = Modifier.wrapContentSize(), horizontalArrangement=Arrangement.spacedBy(4.dp)) {
-                                    Icon(Icons.Default.Camera, "Retake picture button")
-                                    Text("Retake picture", style= LocalTextStyles.current.m)
+                        if (frozen == 0) {
+
+                            Box(
+                                modifier = Modifier.wrapContentSize().padding(bottom = 48.dp)
+                                    .align(Alignment.BottomCenter)
+                            ) {
+                                // freeze button
+                                Button(
+                                    onClick = { setFrozen(1); System.out.println("IN BUTTON FROZEN: $frozen") },
+                                    shape = CircleShape,
+                                    colors = ButtonDefaults.buttonColors(containerColor = androidx.compose.ui.graphics.Color.LightGray),
+                                    modifier = Modifier
+                                        .border(
+                                            5.dp,
+                                            color = androidx.compose.ui.graphics.Color.Gray,
+                                            shape = CircleShape
+                                        )
+                                        .size(80.dp),
+                                    contentPadding = PaddingValues(0.dp),
+                                ) {
+                                    Icon(
+                                        Icons.Filled.Camera,
+                                        "Camera capture button",
+                                        modifier = Modifier.size(60.dp)
+                                    )
                                 }
 
                             }
-                        }
 
-                        item { // send to focused reading
-                            Button({
-                                setReadText(text)
-                                goToReadTextScreen()
-                            }) {
-                                Row(modifier = Modifier.wrapContentSize(), horizontalArrangement=Arrangement.spacedBy(4.dp)) {
-                                    Icon(Icons.Filled.ArrowRightAlt, "Send to focused reading button")
-                                    Text("Send to focused reading", style= LocalTextStyles.current.m)
+
+                        } else {
+                            // buttons
+                            LazyRow(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .wrapContentHeight()
+                                    .background(androidx.compose.ui.graphics.Color.White)
+                                    .padding(16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+
+                                item { // retake button
+                                    Button({ setFrozen(0) }) {
+                                        Row(
+                                            modifier = Modifier.wrapContentSize(),
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            Icon(Icons.Default.Camera, "Retake picture button")
+                                            Text(
+                                                "Retake picture",
+                                                style = LocalTextStyles.current.m
+                                            )
+                                        }
+
+                                    }
                                 }
 
+                                item { // send to focused reading
+                                    Button({
+                                        setReadText(text)
+                                        goToReadTextScreen()
+                                    }) {
+                                        Row(
+                                            modifier = Modifier.wrapContentSize(),
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            Icon(
+                                                Icons.Filled.ArrowRightAlt,
+                                                "Send to focused reading button"
+                                            )
+                                            Text(
+                                                "Send to focused reading",
+                                                style = LocalTextStyles.current.m
+                                            )
+                                        }
+
+                                    }
+                                }
+
+                                item { // select all button
+                                    Button({
+                                        showTextDialog = true
+                                    }) {
+                                        Row(
+                                            modifier = Modifier.wrapContentSize(),
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            Icon(Icons.Filled.SelectAll, "Select all button")
+                                            Text("Select All", style = LocalTextStyles.current.m)
+                                        }
+
+                                    }
+                                }
                             }
                         }
 
-                        item { // select all button
-                            Button({
-                                showTextDialog = true
-                            }) {
-                                Row(modifier = Modifier.wrapContentSize(), horizontalArrangement=Arrangement.spacedBy(4.dp)) {
-                                    Icon(Icons.Filled.SelectAll, "Select all button")
-                                    Text("Select All", style= LocalTextStyles.current.m)
-                                }
-
-                            }
-                        }
                     }
+
                 }
 
             }
-
         }
+
     }
 }
 
@@ -286,7 +408,9 @@ fun ShowTextDialog(visible:Boolean, text:String, onDismiss:()->Unit) {
                         modifier = Modifier.fillMaxWidth().wrapContentHeight().padding(12.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        Text(text, style= LocalTextStyles.current.l)
+                        LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(min=30.dp, max=200.dp).padding(16.dp)) {
+                            item {Text(text, style = LocalTextStyles.current.l)}
+                        }
 
                         Button({
                             clipboardManager.setText(AnnotatedString(text))

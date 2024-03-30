@@ -98,4 +98,7 @@ dependencies {
     // decorations
     implementation("me.nikhilchaudhari:quarks:1.0.0-alpha02")
 
+
+    implementation("io.coil-kt:coil-compose:2.6.0")
+
 }

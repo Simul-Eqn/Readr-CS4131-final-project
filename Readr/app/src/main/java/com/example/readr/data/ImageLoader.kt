@@ -21,9 +21,13 @@ class ImageLoader {
     var storageRef = FirebaseStorage.getInstance().reference
 
 
-    fun withNextImgNum(f:(Int)->Unit) {
-        storageRef.listAll().addOnSuccessListener {
-            f(it.items.size/2)
+    fun withNextImgNum(f:(Int)->Unit, onFailure: (Exception) -> Unit={}) {
+        try {
+            storageRef.listAll().addOnSuccessListener {
+                f(it.items.size / 2)
+            }.addOnFailureListener { onFailure(it) }
+        } catch (e:Exception) {
+            onFailure(e)
         }
     }
 
@@ -33,7 +37,7 @@ class ImageLoader {
     }
 
 
-    fun LoadImageBytes(name:String, onSuccess:(ImageBitmap)->Unit) {
+    fun LoadImageBytes(name:String, onSuccess:(ImageBitmap)->Unit, onFailure:(Exception)->Unit={}) {
 
         if (name.subSequence(0, 4) == "http") {
             //System.out.println("LOAD AS URL")
@@ -57,6 +61,8 @@ class ImageLoader {
             val ref = storageRef.child(name).getBytes(Long.MAX_VALUE).addOnSuccessListener {
                 //Log.w("HSIHFEOKFESD", "SUCCESS: $it")
                 onSuccess(ByteArrayToBitmap(it).asImageBitmap())
+            } .addOnFailureListener {
+                onFailure(it)
             }
         }
 

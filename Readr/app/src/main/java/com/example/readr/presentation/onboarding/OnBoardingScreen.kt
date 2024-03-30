@@ -1,5 +1,6 @@
 package com.example.readr.presentation.onboarding
 
+import android.view.View
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -7,23 +8,37 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.example.readr.MainActivity
 import com.example.readr.R
+import com.example.readr.Variables
+import com.example.readr.noRippleClickable
 import com.example.readr.presentation.Dimens
 import com.example.readr.presentation.onboarding.components.OnBoardingButton
 import com.example.readr.presentation.onboarding.components.OnBoardingPage
@@ -48,7 +63,7 @@ val pages = listOf<Page>(
 
     Page(
         title = "History",
-        description = "Welcome to the Dashboard! View history, or open the accessibility page in Settings to easily find the accessibility menu for this service (explained later). You can also press the camera button to use the camera feature! ",
+        description = "Here, you can view your past uses of the app! If you accidentally closed, or just want to see something you were looking at before, you can click one of these! ",
         image = R.drawable.history_page,
     ),
 
@@ -73,7 +88,7 @@ val pages = listOf<Page>(
     Page(
         title = "Camera (copying dialog) ",
         description = "If you click the \"Select all\" button, you will see this dialog, and you can easily copy the text to your clipboard. ",
-        image = R.drawable.camera_done,
+        image = R.drawable.camera_copy,
     ),
 
     Page(
@@ -95,19 +110,19 @@ val pages = listOf<Page>(
     ),
 
     Page(
-        title = "Accessibility Service (activation)",
+        title = "Accessibility Service",
         description = "If you recall the button on the dashboard, it takes you to this settings screen for you to enable the accessibility service for this application. ",
         image = R.drawable.amenu_settings_page_outer,
     ),
 
     Page(
-        title = "Accessibility Service (shortcut)",
+        title = "Accessibility Shortcut",
         description = "Enable the shortcut as shown, and you can see a floating accessibility button. This can be hidden at the edge of the screen (as shown in this image) ",
         image = R.drawable.amenu_settings_page_inner,
     ),
 
     Page(
-        title = "Accessibility Service (usage)",
+        title = "Accessibility Service Usage",
         description = "When you click the button, text will appear above your screen, using a very readable and cute font :) (OpenDyslexic). The big red X closes this, and lets you continue with whatever you were doing. ",
         image = R.drawable.amenu_usage,
     ),
@@ -119,7 +134,13 @@ val pages = listOf<Page>(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun OnBoardingScreen(initPage:Int? = null, endPage:Int?=initPage, endFunc:()->Unit) {
-    Column(modifier = Modifier.fillMaxSize()) {
+    //val initScale = Variables.textScale
+    LocalTextStyles.current.setTextScale(1.0f)
+
+    Column(modifier = Modifier
+        .fillMaxSize()
+        .noRippleClickable { MainActivity.window.decorView.apply { systemUiVisibility = View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_FULLSCREEN } ; System.out.println("HIDING NAVBAR")}
+    ) {
         lateinit var pagerState:PagerState
         pagerState = if (initPage != null) {
             rememberPagerState(initPage!!) {
@@ -142,13 +163,53 @@ fun OnBoardingScreen(initPage:Int? = null, endPage:Int?=initPage, endFunc:()->Un
             }
         }
 
+        //Spacer(modifier = Modifier.weight(0.5f))
+        Spacer(Modifier.height(32.dp))
 
-        Spacer(modifier = Modifier.weight(0.5f))
+        val titleTextStyleInit = LocalTextStyles.current.l
+        var titleTextStyle by remember { mutableStateOf(titleTextStyleInit) }
+        var displayTitle by remember { mutableStateOf(false) }
 
-        Text(pages[pagerState.currentPage].title, fontSize=20.sp, maxLines=1, modifier = Modifier
-            .fillMaxWidth()
-            .padding(16.dp),
-            style= LocalTextStyles.current.l)
+        Row(modifier = Modifier.fillMaxWidth().wrapContentHeight().padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically, ) {
+
+            Text(
+                pages[pagerState.currentPage].title,
+                maxLines = 1,
+                softWrap = false,
+                modifier = Modifier
+                    .wrapContentWidth()
+                    .padding(16.dp).drawWithContent{ if (displayTitle) drawContent() },
+                style= titleTextStyle,
+                onTextLayout = {
+                    if (it.didOverflowWidth) {
+                        titleTextStyle = titleTextStyle.copy(fontSize = titleTextStyle.fontSize * 0.9)
+                    } else {
+                        displayTitle = true
+                    }
+                }
+            )
+
+            //System.out.println("DISPLAYEDO NBOARDING TITLE TEXT, ${LocalTextStyles.current.l}")
+
+
+            TextButton(
+                onClick = {
+                    endFunc()
+                }, modifier = Modifier.wrapContentSize(), ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(painterResource(R.drawable.skip_icon), "Skip word button", modifier=Modifier.heightIn(20.dp, 20.dp))
+                    Text("SKIP", maxLines=1, softWrap=false, style= LocalTextStyles.current.l)
+                }
+            }
+
+        }
+
+        Spacer(modifier = Modifier.weight(0.65f))
 
         HorizontalPager(state = pagerState) {
             OnBoardingPage(page = pages[it])
@@ -156,10 +217,28 @@ fun OnBoardingScreen(initPage:Int? = null, endPage:Int?=initPage, endFunc:()->Un
 
         Spacer(modifier = Modifier.weight(0.35f))
 
-        Text(pages[pagerState.currentPage].description, fontSize=10.sp, maxLines=4, modifier = Modifier
+
+        val contentTextStyleInit = LocalTextStyles.current.m
+        var contentTextStyle by remember { mutableStateOf(contentTextStyleInit) }
+        var displayContent by remember { mutableStateOf(false) }
+
+        Text(pages[pagerState.currentPage].description,
+            maxLines=6,
+            overflow = TextOverflow.Clip,
+            modifier = Modifier
             .fillMaxWidth()
-            .padding(16.dp),
-            style= LocalTextStyles.current.m)
+            .padding(16.dp)
+            .drawWithContent{ if (displayContent) drawContent() },
+            style= contentTextStyle,
+            onTextLayout = {
+                if (it.didOverflowHeight) {
+                    contentTextStyle = contentTextStyle.copy(fontSize = contentTextStyle.fontSize * 0.9)
+                } else {
+                    displayContent = true
+                }
+            })
+
+        //System.out.println("DISPLAYED ONBOARDING DESC ${LocalTextStyles.current.m}")
 
         Spacer(modifier = Modifier.weight(0.65f))
 
@@ -187,7 +266,15 @@ fun OnBoardingScreen(initPage:Int? = null, endPage:Int?=initPage, endFunc:()->Un
                         if (pagerState.currentPage == pages.size-1 || pagerState.currentPage == endPage) {
                             endFunc()
                         } else {
+
                             pagerState.animateScrollToPage(pagerState.currentPage+1)
+
+                            displayContent = false
+                            contentTextStyle = contentTextStyleInit
+
+                            displayTitle = false
+                            titleTextStyle = titleTextStyleInit
+
                         }
                     }
                 }
@@ -197,7 +284,8 @@ fun OnBoardingScreen(initPage:Int? = null, endPage:Int?=initPage, endFunc:()->Un
         }
 
 
-        Spacer(modifier = Modifier.weight(0.5f))
+        //Spacer(modifier = Modifier.weight(0.5f))
+        Spacer(modifier = Modifier.height(32.dp))
 
 
     }

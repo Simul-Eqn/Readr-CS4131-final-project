@@ -47,9 +47,21 @@ class HistoryItem(val num:Int) {
     }
 
     private val imgl = ImageLoader()
+    private lateinit var init_bm: ImageBitmap
+    private lateinit var final_bm: ImageBitmap
+
+    init {
+        imgl.LoadImageBytes("image_${num}_init.png", { init_bm = it ; MainActivity.loadedHistItems++ })
+        imgl.LoadImageBytes("image_${num}_final.png", { final_bm = it ; MainActivity.loadedHistItems++ })
+    }
 
     @Composable
-    fun ShowView(showDetails:()->Unit) {
+    fun ShowView(showDetails:()->Unit, onFailure:()->Unit) {
+        if ((!(::init_bm.isInitialized)) or (!(::final_bm.isInitialized))) {
+            onFailure()
+            return
+        }
+
         Box(
             modifier = Modifier.sizeIn(
                 minWidth = width,
@@ -67,10 +79,8 @@ class HistoryItem(val num:Int) {
                 contentAlignment = Alignment.Center
             ) {
 
-                var bm by remember { mutableStateOf(ImageBitmap(100,100)) }
-                imgl.LoadImageBytes("image_${num}_init.png", { bm = it })
 
-                Image(bm, "", modifier = Modifier.width(width).height(height).padding(12.dp), colorFilter = ColorFilter.tint(
+                Image(init_bm, "", modifier = Modifier.width(width).height(height).padding(12.dp), colorFilter = ColorFilter.tint(
                     MaterialTheme.colorScheme.onBackground), contentScale = ContentScale.Crop)
 
 
@@ -103,9 +113,7 @@ class HistoryItem(val num:Int) {
 
                 Spacer(Modifier.height(4.dp))
 
-                var bm1 by remember { mutableStateOf(ImageBitmap(100, 100)) }
-                imgl.LoadImageBytes("image_${num}_init.png", { bm1 = it })
-                Image(bm1, "Image of screen before using service")
+                Image(init_bm, "Image of screen before using service")
             }
 
             item {
@@ -118,9 +126,7 @@ class HistoryItem(val num:Int) {
 
                 Spacer(Modifier.height(4.dp))
 
-                var bm2 by remember { mutableStateOf(ImageBitmap(100, 100)) }
-                imgl.LoadImageBytes("image_${num}_final.png", { bm2 = it })
-                Image(bm2, "Image of screen after using service")
+                Image(final_bm, "Image of screen after using service")
             }
 
         }

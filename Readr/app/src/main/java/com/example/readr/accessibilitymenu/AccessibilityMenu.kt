@@ -139,9 +139,9 @@ class AccessibilityMenu : AccessibilityService() {
                     val img = InputImage.fromBitmap(bitmap, 0)
 
                     // SAVE THIS IMAGE AS INITIAL IMAGE
-                    imgl.withNextImgNum {
+                    imgl.withNextImgNum ({
                         imgl.saveImage(bitmap, "image_${it}_init.png", this@AccessibilityMenu)
-                    }
+                    })
 
 
                     textRecognizer.process(img)
@@ -304,13 +304,13 @@ class AccessibilityMenu : AccessibilityService() {
                                             )!!.copy(Bitmap.Config.RGBA_F16, true)
 
                                             // SAVE AS FINAL
-                                            imgl.withNextImgNum {
+                                            imgl.withNextImgNum ({
                                                 imgl.saveImage(
                                                     finalBitmap,
                                                     "image_${it}_final.png",
                                                     this@AccessibilityMenu
                                                 )
-                                            }
+                                            })
 
                                             // show notification
                                             sendNotification(

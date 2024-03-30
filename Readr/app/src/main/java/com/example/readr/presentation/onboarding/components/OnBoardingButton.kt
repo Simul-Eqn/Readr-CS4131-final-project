@@ -21,7 +21,7 @@ fun OnBoardingButton(
     ),
         shape = RoundedCornerShape(6.dp)
     ) {
-        Text(text, style = LocalTextStyles.current.m)
+        Text(text, style = LocalTextStyles.current.s)
     }
 }
 
@@ -36,7 +36,7 @@ onClick:() -> Unit
     ),
         shape = RoundedCornerShape(6.dp)
     ) {
-        Text(text, style = LocalTextStyles.current.m)
+        Text(text, style = LocalTextStyles.current.s)
     }
 }
 

@@ -1,6 +1,7 @@
 package com.example.readr
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -20,12 +21,19 @@ import android.speech.tts.TextToSpeech
 import android.speech.tts.Voice
 import android.util.DisplayMetrics
 import android.util.Log
+import android.view.View
 import android.view.Window
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -34,18 +42,24 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerState
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -54,6 +68,7 @@ import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.Camera
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -76,6 +91,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalConfiguration
@@ -98,6 +114,7 @@ import com.example.readr.data.PersistentStorage
 import com.example.readr.presentation.ChangeReplacedTextSizeSlider
 import com.example.readr.presentation.ChangeTextScaleSlider
 import com.example.readr.presentation.onboarding.OnBoardingScreen
+import com.example.readr.presentation.onboarding.pages
 import com.example.readr.presentation.onscaffold.BottomBar
 import com.example.readr.presentation.onscaffold.COLLAPSED_TOP_BAR_HEIGHT
 import com.example.readr.presentation.onscaffold.DDItem
@@ -126,6 +143,11 @@ class MainActivity : ComponentActivity() {
     companion object {
         lateinit var context: Context
         lateinit var window: Window
+        lateinit var registerForActivityResult: ((Uri?)->Unit) -> ActivityResultLauncher<PickVisualMediaRequest>
+        var isDarkTheme:Boolean = false
+
+        val histItems = mutableListOf<HistoryItem>()
+        var loadedHistItems = 0
 
     }
 
@@ -150,25 +172,9 @@ class MainActivity : ComponentActivity() {
     private val imgl = ImageLoader()
 
     // media player
-    lateinit var mediaPlayer:MediaPlayer
+    var mediaPlayer:MediaPlayer? = null
 
-    // ACCESSIBILITY MENU
-    /*var mBounded = false
-    var mAMenu:AccessibilityMenuService? = null
-    var mConnection = object : ServiceConnection {
-        override fun onServiceDisconnected(name: ComponentName) {
-            Toast.makeText(this@MainActivity, "Service is disconnected", Toast.LENGTH_SHORT).show()
-            mBounded = false
-            mAMenu = null
-        }
 
-        override fun onServiceConnected(name: ComponentName, service: IBinder) {
-            Toast.makeText(this@MainActivity, "Service is connected", Toast.LENGTH_SHORT).show()
-            mBounded = true
-            val mLocalBinder = service as LocalBinder
-            mAMenu = mLocalBinder.instance
-        }
-    }*/
 
     // CAMERA
     lateinit var cameraSource: CameraSource
@@ -308,11 +314,28 @@ class MainActivity : ComponentActivity() {
         notificationManager.notify(nextNotifId++, notification)
     }
 
+    fun loadHistItems(onFinished:()->Unit) {
+        histItems.clear()
+        loadedHistItems = 0
+        // history
+        imgl.withNextImgNum({
+            for (i in 0..<it) {
+                histItems.add(HistoryItem(i))
+            }
+            Thread {
+                while (loadedHistItems != it * 2) Thread.sleep(100)
+                onFinished()
+            }.start()
+        })
+    }
+
+    @SuppressLint("Range")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         MainActivity.context = applicationContext
         MainActivity.window = window
+        MainActivity.registerForActivityResult = { registerForActivityResult(ActivityResultContracts.PickVisualMedia(), it) }
 
         notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         createNotificationChannel(channelID, "MainNotifs", "description")
@@ -323,11 +346,19 @@ class MainActivity : ComponentActivity() {
         speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this)
 
 
+        val cursor = PersistentStorage.DB!!.rawQuery("SELECT ${PersistentStorage.rdm} FROM ${PersistentStorage.TABLE_NAME} ORDER BY ${PersistentStorage.id} DESC ;", null)
+        //val cursor = contentResolver.query(Uri.parse(PersistentStorage.URL), null, null, null, null)
+        var temp = false
+        if (cursor!!.moveToFirst()) {
+            temp = true
+            darkTheme = (cursor!!.getInt(cursor!!.getColumnIndex(PersistentStorage.rdm)) == 1)
+            MainActivity.isDarkTheme = darkTheme
+        }
+
+
         setContent {
 
-            val cursor = contentResolver.query(Uri.parse(PersistentStorage.URL), null, null, null, null)
-            var temp = false
-            if (cursor!!.moveToFirst()) temp = true
+
             cursor.close()
             var finishedOnboarding by remember { mutableStateOf(temp) }
             var onboardingInitPage:Int? = null
@@ -344,7 +375,10 @@ class MainActivity : ComponentActivity() {
             fun recomposeOuter() { recomposeBool = !recomposeBool ; firstOne = false }
 
 
+            var loaded by remember { mutableStateOf(false) }
 
+            // history
+            loadHistItems( {loaded = true } )
 
 
 
@@ -409,6 +443,11 @@ class MainActivity : ComponentActivity() {
                                 Text("Theme: ", style = LocalTextStyles.current.m)
                                 ThemeSwitcher(darkTheme = localDarkTheme, onClick = {
 
+                                    if ((outerNavPageNo == 1) and (innerNavTabNo == 1)) {
+                                        Toast.makeText(this@MainActivity, "Cannot switch theme while using camera/gallery.", Toast.LENGTH_SHORT).show()
+                                        return@ThemeSwitcher
+                                    }
+
                                     scope.launch {
                                         screenShotState.capture()
                                         offsetX.floatValue = screenWidthPx
@@ -417,6 +456,12 @@ class MainActivity : ComponentActivity() {
 
                                         darkTheme = !darkTheme
                                         localDarkTheme = darkTheme
+
+                                        val values = ContentValues()
+                                        values.put(PersistentStorage.rdm, if (darkTheme) 1 else 0)
+                                        contentResolver.insert(PersistentStorage.CONTENT_URI, values)
+
+                                        MainActivity.isDarkTheme = darkTheme
                                     }
 
                                 })
@@ -457,55 +502,79 @@ class MainActivity : ComponentActivity() {
             }
 
 
+            //window.decorView.apply { systemUiVisibility = View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_FULLSCREEN }
 
-            ReadrTheme(darkTheme = localDarkTheme) {
+            /*var navBarVisible by remember { mutableStateOf((window.decorView.visibility and View.SYSTEM_UI_FLAG_HIDE_NAVIGATION) == 0)}
+
+            window.decorView.setOnSystemUiVisibilityChangeListener {
+                    if ((it and View.SYSTEM_UI_FLAG_HIDE_NAVIGATION) == 0) {
+                        navBarVisible = ((window.decorView.visibility and View.SYSTEM_UI_FLAG_HIDE_NAVIGATION) == 0)
+                    }
+                }*/
 
 
-                Box(modifier = Modifier.fillMaxSize()) {
-                    ScreenshotScope(
-                        screenshotState = screenShotState,
+            if (loaded) {
+
+                ReadrTheme(darkTheme = localDarkTheme) {
+
+
+                    Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(color = MaterialTheme.colorScheme.background)
+                            .navigationBarsPadding()
                     ) {
-
-
-
-                        ProvideTextStyle(TextStyle(color=MaterialTheme.colorScheme.onBackground)) {
-                            when (finishedOnboarding) {
-                                true -> ShowView(viewNo, {
-                                    outerNavPageNo = it
-                                    viewNo = it }, recomposeBool, ::recomposeOuter, firstOne)
-
-                                false -> OnBoardingScreen(onboardingInitPage, onboardingEndPage) {
-                                    finishedOnboarding = true
-                                    Log.w("ONBOARDING", "FINISHED: $finishedOnboarding")
-                                    val values = ContentValues()
-                                    values.put(PersistentStorage.rdm, "HEHEH DONE")
-                                    contentResolver.insert(PersistentStorage.CONTENT_URI, values)
-                                }
-                            }
-
-                        }
-
-
-                    }
-                    screenShotState.bitmap.value?.asImageBitmap()?.let {
-                        Image(
-                            bitmap = it,
-                            contentDescription = "screen shot",
+                        ScreenshotScope(
+                            screenshotState = screenShotState,
                             modifier = Modifier
                                 .fillMaxSize()
-                                .clip(
-                                    shape = RemovableExpandingRectShape(
-                                        offsetX = animationOffsetX.value,
-                                        offsetY = animationOffsetY.value,
-                                    )
-                                )
-                        )
-                    }
-                }
+                                .background(color = MaterialTheme.colorScheme.background)
+                        ) {
 
+
+                            ProvideTextStyle(TextStyle(color = MaterialTheme.colorScheme.onBackground)) {
+                                when (finishedOnboarding) {
+                                    true -> ShowView(viewNo, {
+                                        outerNavPageNo = it
+                                        viewNo = it
+                                    }, recomposeBool, ::recomposeOuter, firstOne)
+
+                                    false -> OnBoardingScreen(
+                                        onboardingInitPage,
+                                        onboardingEndPage
+                                    ) {
+                                        finishedOnboarding = true
+                                        Log.w("ONBOARDING", "FINISHED: $finishedOnboarding")
+                                        val values = ContentValues()
+                                        values.put(PersistentStorage.rdm, if (darkTheme) 1 else 0)
+                                        contentResolver.insert(
+                                            PersistentStorage.CONTENT_URI,
+                                            values
+                                        )
+                                    }
+                                }
+
+                            }
+
+
+                        }
+                        screenShotState.bitmap.value?.asImageBitmap()?.let {
+                            Image(
+                                bitmap = it,
+                                contentDescription = "screen shot",
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clip(
+                                        shape = RemovableExpandingRectShape(
+                                            offsetX = animationOffsetX.value,
+                                            offsetY = animationOffsetY.value,
+                                        )
+                                    )
+                            )
+                        }
+                    }
+
+
+                }
 
             }
 
@@ -514,7 +583,7 @@ class MainActivity : ComponentActivity() {
 
     var histItemNum = -1
 
-    @OptIn(ExperimentalPermissionsApi::class)
+    @OptIn(ExperimentalPermissionsApi::class, ExperimentalFoundationApi::class)
     @Composable
     fun ShowView(viewNo:Int, setViewNo:(Int)->Unit, recomposeBool: Boolean, recomposeOuter:()->Unit, firstOne:Boolean=false) {
 
@@ -526,13 +595,13 @@ class MainActivity : ComponentActivity() {
         LocalTextStyles.current.setTextScale(Variables.textScale) // TODO do we save this to firebase?
 
 
-        var idx by remember { mutableIntStateOf(innerNavTabNo) }
-        fun setIdx(newIdx:Int) {
-            idx = newIdx
-            innerNavTabNo = newIdx
-        }
-        val topBarTitle by remember(idx) { mutableStateOf(tab_titles[idx]) }
-        val topBarImg by remember(idx) { mutableStateOf(topBarImgs[idx]) }
+        var pagerState: PagerState = rememberPagerState(innerNavTabNo) { 3 }
+
+        val pagerScope = rememberCoroutineScope()
+
+
+        val topBarTitle by remember(pagerState.currentPage) { mutableStateOf(tab_titles[pagerState.currentPage]) }
+        val topBarImg by remember(pagerState.currentPage) { mutableStateOf(topBarImgs[pagerState.currentPage]) }
 
         val initOnback = {
             if (viewNo != 0) {
@@ -553,14 +622,27 @@ class MainActivity : ComponentActivity() {
         }
 
 
+
+
+        fun setIdx(newIdx:Int) {
+            //pagerState.currentPage = newIdx
+            innerNavTabNo = newIdx
+
+            pagerScope.launch{ pagerState.animateScrollToPage(newIdx) }
+        }
+
+
         when (viewNo) {
             0 -> Scaffold(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(MaterialTheme.colorScheme.background),
-                bottomBar = { BottomBar( idx, { setIdx(it) ; should_listen = false ; speechRecognizer.stopListening() } , tab_titles , tab_images ) },
+                bottomBar = { BottomBar( pagerState.currentPage, { setIdx(it) ; should_listen = false ; speechRecognizer.stopListening() } , tab_titles , tab_images ) },
                 floatingActionButton = {
-                    if (idx==1) FloatingActionButton( onClick = { setViewNo(1) }, containerColor=MaterialTheme.colorScheme.secondary )
+                    if (pagerState.currentPage==1) FloatingActionButton( onClick = {
+                        setViewNo(1)
+                        window.decorView.apply { systemUiVisibility = View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_FULLSCREEN }
+                                                                }, containerColor=MaterialTheme.colorScheme.secondary )
                     { Image(painterResource(R.drawable.camera_icon), "Camera button",
                         modifier = Modifier.size(100.dp)) } },
             ) {
@@ -574,65 +656,87 @@ class MainActivity : ComponentActivity() {
 
                     System.out.println("COMPOSING OUTERNAV 0")
 
-                    Column(
+                    Row(
                         modifier = Modifier.padding(top = COLLAPSED_TOP_BAR_HEIGHT + 16.dp,
                             bottom = 16.dp,
                             start = 16.dp,
                             end = 16.dp,
-                            )
+                            ),
+                        verticalAlignment = Alignment.Top,
                     ) {
-                        if (idx == 0) {
-
-                            val microphonePermissionState: PermissionState = rememberPermissionState(android.Manifest.permission.RECORD_AUDIO)
-
-                            ShowReadingViewPage(
-                                hasPermission = microphonePermissionState.status.isGranted,
-                                onRequestPermission = microphonePermissionState::launchPermissionRequest,
-                                toggle, { toggle = !toggle },
-                                readTxt, currTxt,
-                                { readTxt = it }, { currTxt = it },
-                                { recomposeOuter() } ,
-                            )
-
-                        } else {
-
-                            LazyColumn(
-                                state = listState,
-                            ) {
-                                /* if (outerNavPageNo == 0 && innerNavTabNo == 1) {
-                                item() {
-                                    ExpandedTopBar(topBarImg, topBarTitle)
-                                }
-                            } */ // no more expanded top bar
 
 
-                                items(1) {
-                                    when (idx) {
-                                        //0 ->
-                                        1 -> ShowDashboard(
-                                            toggle,
-                                            { toggle = !toggle },
-                                            { recomposeOuter() })
 
-                                        2 -> ShowSettings(
-                                            toggle,
+
+
+                        HorizontalPager(
+                            state = pagerState,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .wrapContentHeight(),
+                        ) {
+
+                            if (pagerState.currentPage == 0) {
+
+                                val microphonePermissionState: PermissionState = rememberPermissionState(android.Manifest.permission.RECORD_AUDIO)
+
+                                ShowReadingViewPage(
+                                    hasPermission = microphonePermissionState.status.isGranted,
+                                    onRequestPermission = microphonePermissionState::launchPermissionRequest,
+                                    toggle, { toggle = !toggle },
+                                    readTxt, currTxt,
+                                    { readTxt = it }, { currTxt = it },
+                                    { recomposeOuter() } ,
+                                )
+
+                            } else {
+
+                                Column() {
+
+                                    LazyColumn(
+                                        state = listState,
+                                    ) {
+                                        /* if (outerNavPageNo == 0 && innerNavTabNo == 1) {
+                                    item() {
+                                        ExpandedTopBar(topBarImg, topBarTitle)
+                                    }
+                                } */ // no more expanded top bar
+
+
+                                        items(1) {
+                                            when (pagerState.currentPage) {
+                                                //0 ->
+                                                1 -> ShowDashboard(
+                                                    toggle,
+                                                    { toggle = !toggle },
+                                                    { recomposeOuter() })
+
+                                                2 -> ShowSettings(
+                                                    toggle,
+                                                    { toggle = !toggle },
+                                                    { recomposeOuter() },
+                                                )
+                                            }
+                                        }
+
+
+                                    }
+
+                                    if (pagerState.currentPage == 1) {
+                                        ShowHistory(toggle,
                                             { toggle = !toggle },
                                             { recomposeOuter() },
-                                        )
+                                            { setViewNo(2) })
+                                        toggle = !toggle
                                     }
+
                                 }
 
-
-                            }
-
-                            if (idx == 1) {
-                                ShowHistory(toggle,
-                                    { toggle = !toggle },
-                                    { recomposeOuter() },
-                                    { setViewNo(2) })
                             }
 
                         }
+
+
                     }
 
 
@@ -660,7 +764,7 @@ class MainActivity : ComponentActivity() {
                     onRequestPermission = cameraPermissionState::launchPermissionRequest,
                     { setViewNo(0) },
                     { readText = it },
-                    { idx = 0 ; setViewNo(0) },
+                    { setIdx(0) ; setViewNo(0) },
                     setOnback,
                     dropdownItems,
                 )
@@ -675,7 +779,16 @@ class MainActivity : ComponentActivity() {
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(it),
+                        .padding(it)
+                        .consumeWindowInsets(it)
+                        .systemBarsPadding()
+                        .noRippleClickable {
+                            MainActivity.window.decorView.apply {
+                                systemUiVisibility =
+                                    View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_FULLSCREEN
+                            }; System.out.println("HIDING NAVBAR")
+                        }
+                    ,
                 ) {
                     HistoryItem(histItemNum).ShowDetails()
                 }
@@ -1010,10 +1123,12 @@ class MainActivity : ComponentActivity() {
             Toast.makeText(applicationContext, "SUCCESSFULLY FINISHED READING!", Toast.LENGTH_SHORT).show()
 
             mediaPlayer = MediaPlayer.create(applicationContext, R.raw.crowd_cheer)
-            mediaPlayer.start()
+            mediaPlayer!!.start()
 
             Dialog(onDismissRequest = {
-                mediaPlayer.stop()
+                if (mediaPlayer != null) {
+                    mediaPlayer!!.stop()
+                }
                 reset()
             }) {
 
@@ -1021,7 +1136,9 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier
                         .fillMaxSize()
                         .noRippleClickable {
-                            mediaPlayer.stop()
+                            if (mediaPlayer != null) {
+                                mediaPlayer!!.stop()
+                            }
                             reset()
                         }
                 ) {
@@ -1230,6 +1347,45 @@ class MainActivity : ComponentActivity() {
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
 
+                var currentRotation by remember { mutableStateOf(0f) }
+                val rotation = remember { Animatable(currentRotation) }
+
+                val rotationScope = rememberCoroutineScope()
+                Icon(
+                    Icons.Filled.Refresh, "Refresh history",
+                    tint = Color(0x99999999),
+                    modifier = Modifier
+                        .size(32.dp)
+                        .forceRecomposeWith(recomposeBool)
+                        .rotate(rotation.value)
+                        .noRippleClickable {
+                            rotationScope.launch {
+                                rotation.animateTo(
+                                    targetValue = currentRotation + 360f,
+                                    animationSpec = tween(
+                                        durationMillis = 750,
+                                        easing = LinearOutSlowInEasing
+                                    )
+                                )
+
+                                rotation.snapTo(0f)
+
+                                rotation.animateTo(
+                                    targetValue = currentRotation + 360f,
+                                    animationSpec = tween(
+                                        durationMillis = 750,
+                                        easing = LinearOutSlowInEasing
+                                    )
+                                )
+
+                                rotation.snapTo(0f)
+
+                            }
+
+                            this@MainActivity.loadHistItems{ System.out.println("LOADED YAY"); recompose() }
+                        }
+                )
+
 
                 Icon(
                     Icons.Filled.Delete, "Delete/Clear Text replacement history",
@@ -1262,73 +1418,22 @@ class MainActivity : ComponentActivity() {
 
 
 
+        System.out.println("BOXING YES")
 
-        /*
-        // check network connection
-        val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-        val aninfo = cm.activeNetworkInfo
-        if ((aninfo == null) or (!(aninfo!!.isConnected))) {
-            // say that no network and return
-            Toast.makeText(this, "Failed to connect to internet. Please check your network connection!", Toast.LENGTH_SHORT).show()
-            Text("Not connected to internet. cannot load or view history. ", style= LocalTextStyles.current.m)
+        LazyVerticalGrid(
+            GridCells.Adaptive(minSize = HistoryItem.width),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = Modifier.forceRecomposeWith(showConfirmationDialog).forceRecomposeWith(recomposeBool)
+        ) {
 
-        } else {
-
-            var histItemCnt by remember { mutableStateOf(0) }
-
-            imgl.withNextImgNum { histItemCnt = it }
-
-            System.out.println("BOXING YES")
-
-            LazyVerticalGrid(
-                GridCells.Adaptive(minSize = HistoryItem.width),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-                modifier = Modifier.forceRecomposeWith(showConfirmationDialog)
-            ) {
-
-                items(histItemCnt) {
-                    HistoryItem(histItemCnt - it - 1).ShowView {
-                        histItemNum = histItemCnt - it - 1
-                        showHistoryItemView()
-                    } // so that highest num, latest, is shown first
-                }
+            items(histItems.size) {
+                histItems[histItems.size - it - 1].ShowView( {
+                    histItemNum = histItems.size - it - 1
+                    showHistoryItemView()
+                }, recompose) // so that highest num, latest, is shown first
             }
-
-
-        }*/
-
-        var histItemCnt by remember { mutableStateOf(0) }
-
-        var exception by remember { mutableStateOf(false) }
-
-        try {
-            imgl.withNextImgNum { histItemCnt = it }
-        } catch (e:Exception) {
-            exception = true
         }
 
-        if (exception) {
-            // say that no network and return
-            Toast.makeText(this, "Failed to connect to internet. Please check your network connection!", Toast.LENGTH_SHORT).show()
-            Text("Not connected to internet. cannot load or view history. ", style= LocalTextStyles.current.m)
-        } else {
-            System.out.println("BOXING YES")
-
-            LazyVerticalGrid(
-                GridCells.Adaptive(minSize = HistoryItem.width),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-                modifier = Modifier.forceRecomposeWith(showConfirmationDialog)
-            ) {
-
-                items(histItemCnt) {
-                    HistoryItem(histItemCnt - it - 1).ShowView {
-                        histItemNum = histItemCnt - it - 1
-                        showHistoryItemView()
-                    } // so that highest num, latest, is shown first
-                }
-            }
-
-        }
 
 
 
@@ -1348,9 +1453,10 @@ class MainActivity : ComponentActivity() {
                 },
                 confirmButton = {
                     Button({
-                            imgl.deleteAllImages {
+                        imgl.deleteAllImages {
+                            histItems.clear()
                             showConfirmationDialog = false
-                            recomposeOuter()
+                        recomposeOuter()
                             recompose()
                         }
                     },
@@ -1419,9 +1525,11 @@ class MainActivity : ComponentActivity() {
         dropdownItems: MutableList<DDItem>,
     ) {
         if (hasPermission) {
+            var camera by remember { mutableStateOf(true) }
+
             CameraScreen(backButtonFunc, ::sendNotification,
                 setReadText, goToReadTextScreen, setOnback,
-                dropdownItems)
+                dropdownItems, camera, { camera = it })
         } else {
 
             // request permission - adapted from https://github.com/YanneckReiss/JetpackComposeMLKitTutorial
@@ -1458,7 +1566,10 @@ class MainActivity : ComponentActivity() {
         super.onUserLeaveHint()
         should_listen = false
         speechRecognizer.stopListening()
-        mediaPlayer.stop()
+
+        if (mediaPlayer != null) {
+            mediaPlayer!!.stop()
+        }
     }
 
 }

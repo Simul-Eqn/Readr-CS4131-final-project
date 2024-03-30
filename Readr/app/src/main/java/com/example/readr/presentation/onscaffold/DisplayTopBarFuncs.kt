@@ -27,8 +27,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.sp
 import com.example.readr.forceRecomposeWith
+import com.example.readr.openDyslexic
 import com.example.readr.ui.theme.LocalTextStyles
 
 class DisplayTopBarFunc {
@@ -52,7 +55,7 @@ fun DisplayTopBar(title:String, backButtonFunc:(() -> Unit), dropdownItems:List<
                     title,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    style = LocalTextStyles.current.l
+                    style = TextStyle(fontSize=20.sp, fontFamily= openDyslexic)
                 )
 
                 if (dropdownItems.size > 0) {
@@ -115,7 +118,7 @@ fun DisplayTopBar(title:String, dropdownItems:List<DDItem> = listOf() ) {
                     title,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    style = LocalTextStyles.current.l
+                    style = TextStyle(fontSize=20.sp, fontFamily= openDyslexic)
                 )
 
                 if (dropdownItems.size > 0) {

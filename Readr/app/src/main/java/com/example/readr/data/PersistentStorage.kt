@@ -25,15 +25,17 @@ class PersistentStorage: ContentProvider() {
 
         const val DATABASE_NAME = "First Time"
         const val TABLE_NAME = "FirstTime"
-        const val DATABASE_VERSION = 8 // --------------------------------------------- CHANGE THIS
+        const val DATABASE_VERSION = 11 // --------------------------------------------- CHANGE THIS
         const val CREATE_DB_TABLE = (" CREATE TABLE "+ TABLE_NAME
-                + " (id INTEGER PRIMARY KEY AUTOINCREMENT, rdm TEXT NOT NULL);")
+                + " (id INTEGER PRIMARY KEY AUTOINCREMENT, rdm INTEGER NOT NULL);")
 
         init {
             uriMatcher = UriMatcher(UriMatcher.NO_MATCH)
             uriMatcher!!.addURI(PROVIDER_NAME, "firsttime", uriCode)
             uriMatcher!!.addURI(PROVIDER_NAME, "firsttime/*", uriCode)
         }
+
+        var DB:SQLiteDatabase? = null
     }
 
     lateinit var dbHelper: PersistentStorageHelper
@@ -44,6 +46,7 @@ class PersistentStorage: ContentProvider() {
         dbHelper =
             PersistentStorageHelper(context, DATABASE_NAME, DATABASE_VERSION, TABLE_NAME, CREATE_DB_TABLE)
         db = dbHelper.getWritableDatabase()
+        PersistentStorage.DB = db
         return db != null
     }
 
