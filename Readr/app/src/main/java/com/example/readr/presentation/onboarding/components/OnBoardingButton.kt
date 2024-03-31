@@ -1,5 +1,6 @@
 package com.example.readr.presentation.onboarding.components
 
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -19,7 +20,8 @@ fun OnBoardingButton(
         containerColor = MaterialTheme.colorScheme.primary,
         contentColor = MaterialTheme.colorScheme.onPrimary,
     ),
-        shape = RoundedCornerShape(6.dp)
+        shape = RoundedCornerShape(6.dp),
+        contentPadding= PaddingValues(6.dp),
     ) {
         Text(text, style = LocalTextStyles.current.s)
     }
@@ -34,7 +36,8 @@ onClick:() -> Unit
         containerColor = MaterialTheme.colorScheme.secondary,
         contentColor = MaterialTheme.colorScheme.onSecondary,
     ),
-        shape = RoundedCornerShape(6.dp)
+        shape = RoundedCornerShape(6.dp),
+        contentPadding = PaddingValues(6.dp),
     ) {
         Text(text, style = LocalTextStyles.current.s)
     }

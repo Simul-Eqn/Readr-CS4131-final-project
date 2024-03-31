@@ -37,7 +37,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -58,13 +57,12 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
 import com.example.readr.MainActivity
 import com.example.readr.Variables
 import com.example.readr.data.ImageLoader
 import com.example.readr.forceRecomposeWith
 import com.example.readr.noRippleClickable
-import com.example.readr.presentation.ChangeReplacedTextSizeSlider
+import com.example.readr.customcomposables.ChangeReplacedTextSizeSlider
 import com.example.readr.presentation.onscaffold.DDItem
 import com.example.readr.presentation.onscaffold.DisplayTopBar
 import com.example.readr.ui.theme.LocalTextStyles
@@ -260,7 +258,8 @@ fun GalleryScreen(
                                 }
 
                                 Box(
-                                    modifier = Modifier.fillMaxSize(),
+                                    modifier = Modifier.fillMaxSize()//.padding(paddingValues)
+                                    ,
                                     contentAlignment = Alignment.TopCenter
                                 ) {
                                     ChangeReplacedTextSizeSlider(fontSize) {
@@ -273,7 +272,8 @@ fun GalleryScreen(
                                 // vertical adjustment slider - addOffsetY
                                 Box(
                                     contentAlignment = Alignment.CenterEnd,
-                                    modifier = Modifier.fillMaxSize(),
+                                    modifier = Modifier.fillMaxSize()//.padding(paddingValues)
+                                    ,
                                     //.padding(it)
                                 ) {
                                     Box(
@@ -317,7 +317,8 @@ fun GalleryScreen(
                                 // horizontal adjustment slider - addOffsetX
                                 Box(
                                     contentAlignment = Alignment.BottomCenter,
-                                    modifier = Modifier.fillMaxSize().padding(bottom=50.dp),
+                                    modifier = Modifier.fillMaxSize().padding(bottom=50.dp)//.padding(paddingValues)
+                                    ,
                                     //.padding(it)
                                 ) {
                                     val w = (pxToDP(dm.widthPixels) - 32).toFloat()

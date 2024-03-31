@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
 import androidx.compose.material3.Divider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -37,6 +38,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.readr.customcomposables.AdaptiveText
 import com.example.readr.data.ImageLoader
 import com.example.readr.ui.theme.LocalTextStyles
 import kotlinx.coroutines.delay
@@ -49,9 +51,9 @@ class HistoryItem(val num:Int) {
         val height = 160.dp
     }
 
-    private val imgl = ImageLoader()
-    private var init_bm: ImageBitmap? = null
-    private var final_bm: ImageBitmap? = null
+    val imgl = ImageLoader()
+    var init_bm: ImageBitmap? = null
+    var final_bm: ImageBitmap? = null
 
     init {
         imgl.LoadImageBytes("image_${num}_init.png", { System.out.println("LOADING INIT $num") ; init_bm = it ; System.out.println("$init_bm") ; MainActivity.loadedHistItems++ })
@@ -83,14 +85,19 @@ class HistoryItem(val num:Int) {
         ) {
 
             Box(
-                modifier = Modifier.height(height).width(width)
-                    .border(width=4.dp, color= Color.Gray, shape = RoundedCornerShape(16.dp))
+                modifier = Modifier
+                    .height(height)
+                    .width(width)
+                    .border(width = 4.dp, color = Color.Gray, shape = RoundedCornerShape(16.dp))
                     .clickable { showDetails() },
                 contentAlignment = Alignment.Center
             ) {
 
 
-                Image(init_bm!!, "", modifier = Modifier.width(width).height(height).padding(12.dp),
+                Image(init_bm!!, "", modifier = Modifier
+                    .width(width)
+                    .height(height)
+                    .padding(12.dp),
                     contentScale = ContentScale.Crop)
 
 
@@ -108,7 +115,7 @@ class HistoryItem(val num:Int) {
     }
 
     @Composable
-    fun ShowDetails(onFailure: ()->Unit ) {
+    fun ShowDetails(onFailure: ()->Unit, goToMoveTextScreen:()->Unit ) {
         /*if ((init_bm == null) or (final_bm == null)) {
             rememberCoroutineScope().launch {
                 System.out.println("ERROR?")
@@ -149,6 +156,17 @@ class HistoryItem(val num:Int) {
                 Spacer(Modifier.height(4.dp))
 
                 Image(final_bm!!, "Image of screen after using service")
+            }
+
+            item {
+                Divider()
+            }
+
+            item {
+                Button(goToMoveTextScreen, modifier = Modifier.padding(16.dp)) {
+                    AdaptiveText("Enable moving text on output", LocalTextStyles.current.m,
+                        maxLines=1, softWrap=false).ShowOverflowWidth()
+                }
             }
 
         }

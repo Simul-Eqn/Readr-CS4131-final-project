@@ -19,31 +19,19 @@ import androidx.camera.core.ExperimentalGetImage
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.wrapContentSize
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowRightAlt
-import androidx.compose.material.icons.filled.Camera
-import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -54,7 +42,6 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.TransformOrigin
-import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.LayoutCoordinates
@@ -70,8 +57,7 @@ import com.example.readr.Variables
 import com.example.readr.data.ImageLoader
 import com.example.readr.forceRecomposeWith
 import com.example.readr.noRippleClickable
-import com.example.readr.presentation.ChangeReplacedTextSizeSlider
-import com.example.readr.ui.theme.LocalTextStyles
+import com.example.readr.customcomposables.ChangeReplacedTextSizeSlider
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.Text
 import com.google.mlkit.vision.text.TextRecognition
@@ -130,6 +116,7 @@ class TextRecognitionAnalyzer(
 
     companion object {
         const val THROTTLE_TIMEOUT_MS = 1000L
+        var rotation = 90
 
         fun getScreenShot(view: View, withBitmap:(Bitmap)->Unit) {
             /*val returnedBitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
@@ -174,7 +161,7 @@ class TextRecognitionAnalyzer(
         }
 
         @Composable
-        fun ShowFinalView(recomposeBool:Boolean, recompose:()->Unit) {
+        fun ShowFinalView(recomposeBool:Boolean, recompose:()->Unit, goBack:()->Unit) {
 
             var imgView by remember { mutableStateOf<@Composable()()->Unit>({}) }
             val setImgView: (@Composable()()->Unit)->Unit = { imgView = it }
@@ -184,6 +171,12 @@ class TextRecognitionAnalyzer(
 
             var view2 by remember { mutableStateOf<@Composable()()->Unit>({}) }
             val setView2: (@Composable()()->Unit)->Unit = { view2 = it }
+
+            if (!(::prevBitmap.isInitialized)) {
+                Toast.makeText(MainActivity.context, "Did not finish loading camera yet", Toast.LENGTH_SHORT).show()
+                goBack()
+                return
+            }
 
             setImgView {
                 var imgCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
@@ -195,6 +188,7 @@ class TextRecognitionAnalyzer(
                     modifier = Modifier
                         .fillMaxSize()
                         .onGloballyPositioned { imgCoords = it }
+                        .rotate(rotation - 90f)
                     ,
                 )
 
@@ -316,7 +310,8 @@ class TextRecognitionAnalyzer(
                                     }
 
                                     Box(
-                                        modifier = Modifier.fillMaxSize(),
+                                        modifier = Modifier.fillMaxSize()//.padding(paddingValues)
+                                        ,
                                         contentAlignment = Alignment.TopCenter
                                     ) {
                                         ChangeReplacedTextSizeSlider(fontSize) {
@@ -329,7 +324,8 @@ class TextRecognitionAnalyzer(
                                     // vertical adjustment slider - addOffsetY
                                     Box(
                                         contentAlignment = Alignment.CenterEnd,
-                                        modifier = Modifier.fillMaxSize(),
+                                        modifier = Modifier.fillMaxSize()//.padding(paddingValues)
+                                        ,
                                         //.padding(it)
                                     ) {
                                         Box(
@@ -373,7 +369,8 @@ class TextRecognitionAnalyzer(
                                     // horizontal adjustment slider - addOffsetX
                                     Box(
                                         contentAlignment = Alignment.BottomCenter,
-                                        modifier = Modifier.fillMaxSize().padding(bottom=80.dp),
+                                        modifier = Modifier.fillMaxSize().padding(bottom=80.dp)//.padding(paddingValues)
+                                        ,
                                         //.padding(it)
                                     ) {
                                         val w = (pxToDP(dm.widthPixels) - 32).toFloat()
@@ -464,7 +461,7 @@ class TextRecognitionAnalyzer(
         scope.launch {
 
             val mediaImage: Image = imageProxy.image ?: run { imageProxy.close(); return@launch }
-            val inputImage: InputImage = InputImage.fromMediaImage(mediaImage, 90)//imageProxy.imageInfo.rotationDegrees)
+            val inputImage: InputImage = InputImage.fromMediaImage(mediaImage, rotation)//imageProxy.imageInfo.rotationDegrees)
 
             val imgWidth = mediaImage.width
 

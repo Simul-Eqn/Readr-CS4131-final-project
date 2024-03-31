@@ -10,7 +10,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.media.MediaPlayer
-import android.net.ConnectivityManager
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
@@ -40,6 +39,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.consumeWindowInsets
@@ -53,6 +53,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -61,12 +62,14 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.Camera
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
@@ -80,8 +83,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
@@ -102,6 +105,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
@@ -109,14 +113,16 @@ import androidx.compose.ui.window.Dialog
 import androidx.core.app.ActivityCompat
 import androidx.core.view.WindowCompat
 import com.example.readr.camera.CameraScreen
+import com.example.readr.customcomposables.AdaptiveText
+import com.example.readr.customcomposables.ChangeReplacedTextSizeSlider
+import com.example.readr.customcomposables.ChangeTextScaleSlider
+import com.example.readr.customcomposables.ForceShowBottomColumn
+import com.example.readr.customcomposables.ForceShowRightRow
 import com.example.readr.data.FirebaseHandler
 import com.example.readr.data.ImageLoader
 //import com.example.readr.AccessibilityMenuService.LocalBinder
 import com.example.readr.data.PersistentStorage
-import com.example.readr.presentation.ChangeReplacedTextSizeSlider
-import com.example.readr.presentation.ChangeTextScaleSlider
 import com.example.readr.presentation.onboarding.OnBoardingScreen
-import com.example.readr.presentation.onboarding.pages
 import com.example.readr.presentation.onscaffold.BottomBar
 import com.example.readr.presentation.onscaffold.COLLAPSED_TOP_BAR_HEIGHT
 import com.example.readr.presentation.onscaffold.DDItem
@@ -150,6 +156,10 @@ class MainActivity : ComponentActivity() {
 
         val histItems = mutableListOf<HistoryItem>()
         var loadedHistItems = 0
+
+        fun pxToDP(px: Int): Float {
+            return (px / context.resources.displayMetrics.density)
+        }
 
     }
 
@@ -551,7 +561,8 @@ class MainActivity : ComponentActivity() {
 
                                     false -> OnBoardingScreen(
                                         onboardingInitPage,
-                                        onboardingEndPage
+                                        onboardingEndPage,
+                                        localDarkTheme,
                                     ) {
                                         finishedOnboarding = true
                                         Log.w("ONBOARDING", "FINISHED: $finishedOnboarding")
@@ -617,19 +628,25 @@ class MainActivity : ComponentActivity() {
         val topBarTitle by remember(pagerState.currentPage) { mutableStateOf(tab_titles[pagerState.currentPage]) }
         val topBarImg by remember(pagerState.currentPage) { mutableStateOf(topBarImgs[pagerState.currentPage]) }
 
-        val initOnback = {
+        val initCameraOnback = {
             if (viewNo != 0) {
                 innerNavTabNo = 1 // since it all must mean go back to dashboard yes
                 setViewNo(0)
             }
         }
 
-        var onback = initOnback
+        val initHistItemMoveTextOnback = {
+            if (viewNo == 4) {
+                setViewNo(2)
+            }
+        }
+
+        var onback = initCameraOnback
         BackPressHandler(onBackPressed = onback)
 
         val setOnback:((()->Unit)?)->Unit = {
             onback = if (it == null) {
-                initOnback
+                initCameraOnback
             }  else {
                 it
             }
@@ -691,13 +708,15 @@ class MainActivity : ComponentActivity() {
 
                                 val microphonePermissionState: PermissionState = rememberPermissionState(android.Manifest.permission.RECORD_AUDIO)
 
+                                var currWord by remember { mutableStateOf(-1) } // listen for 0 1 and 2
                                 ShowReadingViewPage(
                                     hasPermission = microphonePermissionState.status.isGranted,
                                     onRequestPermission = microphonePermissionState::launchPermissionRequest,
                                     toggle, { toggle = !toggle },
                                     readTxt, currTxt,
                                     { readTxt = it }, { currTxt = it },
-                                    { recomposeOuter() } ,
+                                    { recomposeOuter() }, currWord, {currWord = it},
+                                    { newCurrTxt, newCurrWord -> currTxt=newCurrTxt; currWord=newCurrWord }
                                 )
 
                             } else {
@@ -766,6 +785,7 @@ class MainActivity : ComponentActivity() {
             }
 
             1 -> {
+                setOnback(initCameraOnback)
                 val cameraPermissionState: PermissionState = rememberPermissionState(android.Manifest.permission.CAMERA)
 
                 ShowCameraPage(
@@ -775,7 +795,7 @@ class MainActivity : ComponentActivity() {
                     { readText = it },
                     { setIdx(0) ; setViewNo(0) },
                     setOnback,
-                    initOnback,
+                    initCameraOnback,
                     dropdownItems,
                 )
             }
@@ -800,7 +820,7 @@ class MainActivity : ComponentActivity() {
                         }
                     ,
                 ) {
-                    histItems[histItemNum].ShowDetails(recomposeOuter)
+                    histItems[histItemNum].ShowDetails(recomposeOuter, { setViewNo(4) })
                 }
             }
 
@@ -832,6 +852,15 @@ class MainActivity : ComponentActivity() {
                             { setViewNo(2) }, {})
                 }
             }
+
+            4 -> {
+                setOnback(initHistItemMoveTextOnback)
+
+                HistoryMoveTextScreen(histItems[histItemNum].init_bm!!, histItemNum, dropdownItems,
+                ::sendNotification, {readText = it}, { setIdx(0) ; setViewNo(0) },
+                    { setOnback { if (it != null) it{ initHistItemMoveTextOnback() } } },
+                    { initHistItemMoveTextOnback() })
+            }
         }
     }
 
@@ -845,10 +874,7 @@ class MainActivity : ComponentActivity() {
     val alphanumericRegex = Regex("""[a-zA-Z0-9]+""")
     val nonAlphanumericRegex = Regex("""[^a-zA-Z0-9]""")
 
-    fun getCurrWord(readTxt:String, currTxt:String): String {
-        //System.out.println("CHECKING CURR WORD")
-        //System.out.println("readTxt: $readTxt")
-        //System.out.println("currTxt: $currTxt")
+    /*fun getCurrWord(readTxt:String, currTxt:String): String {
         if (currTxt.length >= readTxt.length) {
             return ""
         } else {
@@ -860,11 +886,18 @@ class MainActivity : ComponentActivity() {
                 throw IllegalArgumentException("currTxt must be a subset of readTxt. (getCurrWord)")
             }
         }
-    }
+    }*/
 
     var numWordsFuture = 3
 
-    fun getDetectWords(readTxt:String, currTxt:String): List<String> {
+    var words : List<String>? = null
+
+    /*fun getDetectWords(readTxt:String, currTxt:String): List<String> {
+        if (words == null) {
+            // then initialize it
+            words = readTxt.split(wordSplitterRegex)
+        }
+
         if (currTxt.length >= readTxt.length) {
             return listOf()
         } else {
@@ -887,7 +920,7 @@ class MainActivity : ComponentActivity() {
                 throw IllegalArgumentException("currTxt must be a subset of readTxt.")
             }
         }
-    }
+    }*/
 
     fun wordsMatch(word1:String, word2:String) : Boolean {
         val w1 = nonAlphanumericRegex.replace(word1, "").lowercase()
@@ -899,16 +932,6 @@ class MainActivity : ComponentActivity() {
     fun getTillWord(readTxt:String, currTxt:String, word:String) : String {
         if (readTxt.substring(0, currTxt.length) == currTxt) {
             val n = readTxt.substring(currTxt.length)
-
-            /* regex attempt - probably not needed, though
-            var matchRes = Regex.fromLiteral(word).find(n)
-            if (matchRes == null) {
-                throw IllegalArgumentException("Word not found in readTxt after currTxt.")
-            } else {
-                return readTxt + n.substring(0, matchRes.range.last)
-            }
-            */
-            //System.out.println("FINDING WORD $word IN readTxt: \n$readTxt\n\ncurrTxt: \n$currTxt\n\nn: \n$n\n\nnsubstr: \n${n.substring(0, word.length)}\n\n\n")
 
             val res = n.substringBefore(word, "")
 
@@ -928,19 +951,35 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    fun getNextWord(currWord:Int):String {
+        if ((words==null) or (currWord+1 >= words!!.size)) return ""
+        else return words!![currWord+1]
+    }
+
+    fun getDetectWords(currWord:Int):List<String> {
+        val num = min(numWordsFuture, words!!.size-currWord-1)
+        val res = mutableListOf<String>()
+        for (i in 1..num) {
+            res.add(words!![currWord+i])
+        }
+        return res
+    }
+
 
     @Composable
     fun ShowReadingViewPage(hasPermission: Boolean, onRequestPermission: () -> Unit,
                             toggle:Boolean, toggleFunc:()->Unit,
                             readTxt:String, currTxt: String,
                             setReadTxt: (String)->Unit, setCurrTxt:(String)->Unit,
-                            recomposeOuter:()->Unit, ) {
+                            recomposeOuter:()->Unit, currWord:Int, setCurrWord: (Int) -> Unit,
+                            setCurrs:(String, Int)->Unit) {
 
         if (hasPermission) {
             ShowReadingView(toggle, toggleFunc,
                 readTxt, currTxt,
                 setReadTxt, setCurrTxt,
-                recomposeOuter )
+                currWord, setCurrWord,
+                setCurrs )
 
         } else {
 
@@ -969,7 +1008,27 @@ class MainActivity : ComponentActivity() {
     fun ShowReadingView(recomposeBool:Boolean, recompose:()->Unit,
                         readTxt:String, currTxt: String,
                         setReadTxt: (String)->Unit, setCurrTxt:(String)->Unit,
-                        recomposeOuter:()->Unit, ) {
+                        currWord:Int, setCurrWord:(Int)->Unit,
+                        setCurrs: (String, Int) -> Unit ) {
+
+        key(readTxt) {
+            words = readTxt.split(wordSplitterRegex)
+            System.out.print("WORDS: ")
+            for (w in words!!) {
+                System.out.print("$w, ")
+            }
+            System.out.println()
+            System.out.println("NEXT WORD: ${getNextWord(currWord)}")
+        }
+
+        /*key(readTxt, currTxt) {
+            if (currTxt.trim() == "") {
+                words = readTxt.split(wordSplitterRegex)
+                setCurrWord(-1) // means words done
+            }
+        }*/
+
+        var showEditReadTxtDialog by remember { mutableStateOf(false) }
 
 
         Row(
@@ -978,38 +1037,52 @@ class MainActivity : ComponentActivity() {
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.Top,
         ) {
-            Column(
+            ForceShowBottomColumn(
                 modifier = Modifier.fillMaxSize(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(20.dp),
+                //horizontalAlignment = Alignment.CenterHorizontally,
+                //verticalArrangement = Arrangement.spacedBy(20.dp),
+                spacingDP = 16
             ) {
 
-                Text("FOCUSED READING OUT LOUD MODE", style = LocalTextStyles.current.xl)
+                //Text("FOCUSED READING OUT LOUD MODE", style = LocalTextStyles.current.xl)
 
                 //val box_height = (getSystemService(WINDOW_SERVICE) as WindowManager).defaultDisplay.height * 0.7f
                 Box(
                     modifier = Modifier
-                        //.fillMaxSize()
-                        .fillMaxWidth()
-                        .weight(0.88f)
+                        .fillMaxSize()
+                        //.fillMaxWidth()
                         //.heightIn(min=box_height.dp, max=box_height.dp)
                         .verticalScroll(rememberScrollState())
                     ,
                 ) {
-                    Text(readTxt, style=LocalTextStyles.current.m)
+                    if (readTxt.trim() != "") {
+                        Text(readTxt, style = LocalTextStyles.current.m)
 
-                    Text(
-                        buildAnnotatedString {
-                            withStyle(style=SpanStyle(color=LocalMoreColors.current.greyed_text)) {
-                                append(currTxt)
-                            }
+                        Text(
+                            buildAnnotatedString {
+                                withStyle(style = SpanStyle(color = LocalMoreColors.current.greyed_text)) {
+                                    append(currTxt)
+                                }
 
-                            withStyle(style=SpanStyle(background=LocalMoreColors.current.highlight_text)) {
-                                append(getTillWord(readTxt, currTxt, getCurrWord(readTxt, currTxt)).substring(currTxt.length))
+                                withStyle(style = SpanStyle(background = LocalMoreColors.current.highlight_text)) {
+                                    append(
+                                        getTillWord(
+                                            readTxt,
+                                            currTxt,
+                                            getNextWord(currWord)
+                                        ).substring(currTxt.length)
+                                    )
+                                }
+                            },
+                            style = LocalTextStyles.current.m,
+                        )
+                    } else {
+                        Text(buildAnnotatedString {
+                            withStyle(SpanStyle(color=Color(0xAAAAAAAA), fontWeight=FontWeight.Bold)) {
+                                append("[NO TEXT FOUND]")
                             }
-                        },
-                        style=LocalTextStyles.current.m,
-                    )
+                        }, style=LocalTextStyles.current.xl)
+                    }
                 }
 
                 // bottom menu of help buttons
@@ -1018,33 +1091,94 @@ class MainActivity : ComponentActivity() {
                         .fillMaxWidth()
                         .wrapContentHeight()
                         .weight(0.12f)
+                        .padding(16.dp)
                     ,
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
-                    Button({
+
+                    val initTextStyle = LocalTextStyles.current.l.copy()
+                    var textStyle by remember { mutableStateOf(initTextStyle) }
+                    var showTexts by remember { mutableStateOf(false) }
+
+                    var textHeight by remember { mutableStateOf(100f) }
+
+                    Button(enabled=(getNextWord(currWord)!=""), modifier = Modifier
+                        .wrapContentSize()
+                        .padding(end = 8.dp), onClick={
                         textToSpeech.stop()
-                        textToSpeech.speak(getCurrWord(readTxt, currTxt), TextToSpeech.QUEUE_FLUSH, null, "tts1")
+                        textToSpeech.speak(getNextWord(currWord), TextToSpeech.QUEUE_FLUSH, null, "tts1")
                     }) {
                         Row(
+                            modifier = Modifier.height(IntrinsicSize.Min),
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Text("HELP", style=LocalTextStyles.current.l)
-                            Icon(painterResource(R.drawable.sound_icon), "Play word button", modifier=Modifier.heightIn(30.dp, 30.dp))
+
+                            Text(
+                                "HELP",
+                                modifier = Modifier.wrapContentWidth(),
+                                style= textStyle,
+                                maxLines=1,
+                                softWrap=false,
+                                onTextLayout = {
+                                    textHeight=pxToDP(it.size.height)
+                                    if (it.didOverflowWidth) {
+                                        textStyle = textStyle.copy(fontSize = textStyle.fontSize * 0.9)
+                                    } else {
+                                        showTexts = true
+                                    }
+                                }
+                            )
+
+                            //AdaptiveText("HELP", LocalTextStyles.current.l, maxLines=1, softWrap=false,
+                            //    modifier = Modifier.onGloballyPositioned { textHeight = pxToDP(it.size.height) }).ShowOverflowWidth()
+                            Icon(painterResource(R.drawable.sound_icon), "Play word button", modifier=Modifier.height(textHeight.dp))
                         }
+                    }
+
+                    Button({
+                        showEditReadTxtDialog = true
+                    }, shape=CircleShape, modifier = Modifier
+                        .wrapContentSize()
+                        .padding(horizontal = 8.dp)) {
+                        Icon(Icons.Default.Edit, "Edit text to read",
+                            tint = if (darkTheme) Color.Green
+                            else Color.Blue)
                     }
 
                     Button(
                         enabled = (readTxt != currTxt),
+                        modifier = Modifier
+                            .wrapContentSize()
+                            .padding(start = 8.dp),
                         onClick = {
-                        setCurrTxt(getTillWord(readTxt, currTxt, getCurrWord(readTxt, currTxt)))
+                        setCurrs(getTillWord(readTxt, currTxt, getNextWord(currWord)), currWord+1)
                     }) {
                         Row(
+                            modifier = Modifier.height(IntrinsicSize.Min),
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Text("SKIP", style= LocalTextStyles.current.l)
-                            Icon(painterResource(R.drawable.skip_icon), "Skip word button", modifier=Modifier.heightIn(30.dp, 30.dp))
+                            //AdaptiveText("SKIP", LocalTextStyles.current.l, maxLines=1, softWrap=false,
+                            //    modifier = Modifier.onGloballyPositioned { textHeight = pxToDP(it.size.height) }).ShowOverflowWidth()
+
+                            Text(
+                                "SKIP",
+                                modifier = Modifier.wrapContentWidth(),
+                                style= textStyle,
+                                maxLines=1,
+                                softWrap=false,
+                                onTextLayout = {
+                                    textHeight=pxToDP(it.size.height)
+                                    if (it.didOverflowWidth) {
+                                        textStyle = textStyle.copy(fontSize = textStyle.fontSize * 0.9)
+                                    } else {
+                                        showTexts = true
+                                    }
+                                }
+                            )
+
+                            Icon(painterResource(R.drawable.skip_icon), "Skip word button", modifier=Modifier.height(textHeight.dp))
                         }
                     }
                 }
@@ -1053,11 +1187,14 @@ class MainActivity : ComponentActivity() {
         }
 
         // show completed dialog if completed :)
-        var showCompletedDialog by remember(readTxt, currTxt) { mutableStateOf(readTxt == currTxt) }
+        System.out.println("WORDS SIZE: ${words!!.size} CURRWORD: $currWord")
+        var showCompletedDialog by remember(words, currWord) { mutableStateOf((words != null) and (words!!.size != 0) and (words!!.size == currWord+1)) }
         ShowCompletedDialog(showCompletedDialog, {
             showCompletedDialog = false
-            setCurrTxt("")
+            setCurrs("", -1)
         })
+
+        ShowEditReadTxtDialog(showEditReadTxtDialog, {showEditReadTxtDialog = !showEditReadTxtDialog}, readTxt, setReadTxt)
 
 
         // init STT
@@ -1071,53 +1208,29 @@ class MainActivity : ComponentActivity() {
                 if (it == null) {
                     Toast.makeText(this, "NO SPEECH DETECTED", Toast.LENGTH_SHORT).show()
                 } else {
-                    //System.out.print("TEXT DETECTED FROM SPEECH: ")
+                    System.out.print("TEXT DETECTED FROM SPEECH: ")
 
                     for (s in it) {
-                        //System.out.println(s)
+                        System.out.println(s)
                         val word = s.split(wordSplitterRegex).last()
-                        //System.out.println("WORD: $word")
-
-                        // not anymore because not recomposing or something
-
-                        // so, i just copied the code here
-                        /*lateinit var detectWords: List<String>
-                        if (currTxt.length >= readTxt.length) {
-                            detectWords = listOf()
-                        } else {
-                            if (readTxt.substring(0, currTxt.length) == currTxt) {
-                                val n = readTxt.substring(currTxt.length)
-                                val t = n.trim().split(wordSplitterRegex)
-                                detectWords =  t.subList(0, min(numWordsFuture, t.size))
-                                System.out.print("Words possible: ")
-                                for (r in detectWords) System.out.print("'$r', ")
-                                System.out.println()
-                            } else {
-                                throw IllegalArgumentException("currTxt must be a subset of readTxt.")
-                            }
-                        }
-
-                        if (w in detectWords) {*/
-
-                        //if (w in getDetectWords(readTxt, currTxt)) {
-
 
                         var w: String? = null
-                        val detectWords = getDetectWords(readTxt, currTxt)
-                        for (dwidx in detectWords.indices) {
+                        val detectWords = getDetectWords(currWord)
+                        var dwidx = 0
+                        while (dwidx < detectWords.size) {
                             //if (word.trim().lowercase() == detectWords[dwidx].trim().lowercase()) {
                             if (wordsMatch(word, detectWords[dwidx])) {
                                 w = detectWords[dwidx]
                                 break
                             }
+                            dwidx++
                         }
 
                         if (w != null) {
                             System.out.println("MATCH FOUND!!")
-                            speechRecognizer.stopListening()
-                            setCurrTxt(getTillWord(readTxt, currTxt, w))
-                            if (currTxt == readTxt) {
-
+                            setCurrs(getTillWord(readTxt, currTxt, w), currWord + dwidx+1)
+                            //speechRecognizer.stopListening()
+                            if ((words != null) and (words!!.size != 0) and (currWord+1 == words!!.size)) {
                                 return@initSTT
                             }
                         }
@@ -1269,6 +1382,69 @@ class MainActivity : ComponentActivity() {
     }
 
 
+
+    @Composable
+    fun ShowEditReadTxtDialog(show:Boolean, hide:()->Unit, readTxt:String, setReadTxt: (String) -> Unit) {
+        if (show) {
+            Dialog(onDismissRequest = {
+                hide()
+            }) {
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(24.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .wrapContentHeight()
+                            .border(
+                                width = 6.dp,
+                                color = Color(40, 40, 40),
+                                shape = RoundedCornerShape(16.dp)
+                            ),
+                        shape = RoundedCornerShape(16.dp),
+                    ) {
+
+                        var txt by remember { mutableStateOf(readTxt) }
+
+
+                        ForceShowBottomColumn(modifier = Modifier.wrapContentSize(), spacingDP=20, useMaxHeight=false) {
+                            LazyColumn(
+                                modifier = Modifier.heightIn(max=200.dp).wrapContentHeight(),
+                            ) {
+                                item { TextField(txt, { txt = it }, textStyle= LocalTextStyles.current.m) }
+                            }
+
+
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .wrapContentHeight(),
+                                horizontalAlignment = Alignment.End,
+                            ) {
+                                Button(modifier = Modifier.wrapContentHeight(), onClick={
+                                    setReadTxt(txt)
+                                    hide()
+                                }) {
+                                    AdaptiveText("Confirm", LocalTextStyles.current.m, 1, false).ShowOverflow()
+                                }
+                            }
+                        }
+
+
+
+                    }
+                }
+
+            }
+        }
+    }
+
+
     @Composable
     fun ShowDashboard(recomposeBool:Boolean, recompose:()->Unit, recomposeOuter:()->Unit, ) {
 
@@ -1283,75 +1459,13 @@ class MainActivity : ComponentActivity() {
                 recomposeOuter()
             }
 
-
-            /*var amenuEnabled: Boolean by remember(
-                (getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager) // accessibilty manager
-                .getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK) // list of feedback
-            ) {
-                mutableStateOf(
-                    (getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager) // accessibilty manager
-                        .getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK) // list of feedback
-                        .map{ it.resolveInfo.serviceInfo.packageName.equals("com.example.readr.accessibilitymenu") } // check if any are yes
-                        .any() // boolean
-                )
-            }*/
-
-            // tried power button, but requires rooted phone.
-            /*Button({
-
-                // check if already enabled
-                if (!amenuEnabled) {
-
-                    Settings.Secure.putString(
-                        contentResolver,
-                        Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
-                        "com.example.readr.accessibilitymenu/AccessibilityMenu"
-                    )
-                    Settings.Secure.putString(
-                        contentResolver,
-                        Settings.Secure.ACCESSIBILITY_ENABLED, "1"
-                    )
-
-                } else {
-                    // disable
-                    Settings.Secure.dele
-                }
-
-                /*if (!mBounded) {
-                    if (!Settings.canDrawOverlays(application)) {
-                        val intent = Intent(
-                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                            Uri.parse("package:$packageName")
-                        )
-                        startActivityForResult(intent, 0)
-
-                    } else {
-                        val intent = Intent(this@MainActivity, AccessibilityMenuService::class.java)
-                        startForegroundService(intent)
-                        bindService(intent, mConnection, BIND_AUTO_CREATE)
-                    }
-                } else {
-                    Toast.makeText(applicationContext, "REMOVING YES", Toast.LENGTH_SHORT).show()
-                    stopAccessibilityMenu()
-                }*/
-
-            },
-                modifier= Modifier.size(100.dp),  //avoid the oval shape
-                shape = CircleShape,
-                border= BorderStroke(1.dp, Color.Blue),
-                contentPadding = PaddingValues(0.dp),  //avoid the little icon
-                colors = ButtonDefaults.outlinedButtonColors(contentColor =  Color.Blue)
-            ) {
-                Icon(painterResource(R.drawable.power_icon), "Launch/Close Accessibility Menu", modifier = Modifier.heightIn(70.dp, 70.dp))
-            }*/
-
             Button({
                 val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
                 startActivity(intent)
             },
                 Modifier.wrapContentSize(),
             ) {
-                Text("Open accessibility page in Settings", style= LocalTextStyles.current.m)
+                AdaptiveText("Open Settings accessibility page", LocalTextStyles.current.m, maxLines=1, softWrap=false).ShowOverflowWidth()
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -1370,16 +1484,17 @@ class MainActivity : ComponentActivity() {
 
         var showConfirmationDialog by remember { mutableStateOf(false) }
 
-        Row(
+        ForceShowRightRow(
             modifier = Modifier
                 .wrapContentHeight()
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp)
                 .forceRecomposeWith(showConfirmationDialog),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
+            //horizontalArrangement = Arrangement.SpaceBetween,
+            //verticalAlignment = Alignment.CenterVertically,
+            spacingDP = 10,
         ) {
-            Text("Text Replacement History", style=LocalTextStyles.current.m)
+            AdaptiveText("Text Replacement History", LocalTextStyles.current.xl, maxLines=1, softWrap=false, Modifier.padding(end=12.dp)).ShowOverflowWidth()
 
             Row(
                 modifier = Modifier.wrapContentSize(),
@@ -1543,17 +1658,20 @@ class MainActivity : ComponentActivity() {
                 .fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            ChangeReplacedTextSizeSlider(Variables.overlayTextSize, textScale) {
+
+            var extra by remember { mutableStateOf(1) }
+
+            ChangeReplacedTextSizeSlider(Variables.overlayTextSize, textScale, extra, {
                 Variables.overlayTextSize = it
                 recomposeOuter()
-            }
+            })
 
-            ChangeTextScaleSlider(textScale) {
+            ChangeTextScaleSlider(textScale, {
                 Variables.textScale = it
                 textScale = it
                 recomposeOuter()
                 recompose()
-            }
+            }, extra, {extra++})
         }
 
     }

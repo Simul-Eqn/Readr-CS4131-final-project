@@ -5,6 +5,7 @@ import com.example.readr.R
 data class Page(
     val title:String,
     val description: String,
-    val image: Any,
+    val light_image: Any,
+    val dark_image: Any?=null,
 )
 

@@ -39,6 +39,7 @@ import androidx.compose.material.icons.filled.ArrowRightAlt
 import androidx.compose.material.icons.filled.Camera
 import androidx.compose.material.icons.filled.CopyAll
 import androidx.compose.material.icons.filled.Photo
+import androidx.compose.material.icons.filled.Rotate90DegreesCw
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -61,6 +62,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
@@ -157,6 +159,8 @@ private fun CameraContent(overlayContent:@Composable()(PaddingValues)->Unit, set
     })
 
 
+    var rotation by remember { mutableStateOf(1) }
+
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
         Scaffold(
             modifier = Modifier.fillMaxSize(),
@@ -217,62 +221,74 @@ private fun CameraContent(overlayContent:@Composable()(PaddingValues)->Unit, set
                     contentAlignment = androidx.compose.ui.Alignment.BottomCenter
                 ) {
 
-                    key(frozen) {
+                    TextRecognitionAnalyzer.rotation = rotation*90
 
-                        if (frozen == 0) {
+                    Box(
+                        modifier = Modifier.wrapContentSize().rotate(if (frozen==0) (rotation-1)*90f else 0f),
+                    ) {
+                        key(frozen) {
 
-                            AndroidView(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(paddingValues)
-                                    /*.noRippleClickable {
+                            if (frozen == 0) {
+
+                                AndroidView(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(paddingValues)
+                                        /*.noRippleClickable {
                             setFrozen(0)
                         }*/
-                                    .noRippleClickable {
-                                        MainActivity.window.decorView.apply {
-                                            systemUiVisibility =
-                                                View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_FULLSCREEN
-                                        }; System.out.println("HIDING NAVBAR")
+                                        .noRippleClickable {
+                                            MainActivity.window.decorView.apply {
+                                                systemUiVisibility =
+                                                    View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_FULLSCREEN
+                                            }; System.out.println("HIDING NAVBAR")
+                                        },
+                                    factory = { context ->
+                                        PreviewView(context).apply {
+                                            layoutParams = LinearLayout.LayoutParams(
+                                                ViewGroup.LayoutParams.MATCH_PARENT,
+                                                ViewGroup.LayoutParams.MATCH_PARENT
+                                            )
+                                            setBackgroundColor(androidColor.BLACK)
+                                            implementationMode =
+                                                PreviewView.ImplementationMode.COMPATIBLE
+                                            scaleType = PreviewView.ScaleType.FILL_START
+                                        }.also { previewView ->
+                                            startTextRecognition(
+                                                context = context,
+                                                cameraController = cameraController,
+                                                lifecycleOwner = lifecycleOwner,
+                                                previewView = previewView,
+                                                view = overlayContent,
+                                                setView = setOverlayContent,
+                                                topPadding = -paddingValues.calculateTopPadding().value,
+                                                //addOffsetX = addOffsetX,
+                                                //setAddOffsetX = setAddOffsetX,
+                                                //addOffsetY = addOffsetY,
+                                                //setAddOffsetY = setAddOffsetY,
+                                                frozen = frozen,
+                                                setFrozen = setFrozen,
+                                                sendNotification = sendNotification,
+                                                setText = { text = it },
+                                            )
+                                        }
                                     },
-                                factory = { context ->
-                                    PreviewView(context).apply {
-                                        layoutParams = LinearLayout.LayoutParams(
-                                            ViewGroup.LayoutParams.MATCH_PARENT,
-                                            ViewGroup.LayoutParams.MATCH_PARENT
-                                        )
-                                        setBackgroundColor(androidColor.BLACK)
-                                        implementationMode =
-                                            PreviewView.ImplementationMode.COMPATIBLE
-                                        scaleType = PreviewView.ScaleType.FILL_START
-                                    }.also { previewView ->
-                                        startTextRecognition(
-                                            context = context,
-                                            cameraController = cameraController,
-                                            lifecycleOwner = lifecycleOwner,
-                                            previewView = previewView,
-                                            view = overlayContent,
-                                            setView = setOverlayContent,
-                                            topPadding = -paddingValues.calculateTopPadding().value,
-                                            //addOffsetX = addOffsetX,
-                                            //setAddOffsetX = setAddOffsetX,
-                                            //addOffsetY = addOffsetY,
-                                            //setAddOffsetY = setAddOffsetY,
-                                            frozen = frozen,
-                                            setFrozen = setFrozen,
-                                            sendNotification = sendNotification,
-                                            setText = { text = it },
-                                        )
-                                    }
-                                },
-                            )
+                                )
 
-                        } else {
-                            TextRecognitionAnalyzer.saveInitImage()
+                            } else {
+                                TextRecognitionAnalyzer.saveInitImage()
 
-                            var recomposeBool by remember { mutableStateOf(false) }
-                            TextRecognitionAnalyzer.ShowFinalView(recomposeBool, { recomposeBool = !recomposeBool })
+                                Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
+                                    var recomposeBool by remember { mutableStateOf(false) }
+                                    TextRecognitionAnalyzer.ShowFinalView(
+                                        recomposeBool,
+                                        { recomposeBool = !recomposeBool },
+                                        { setFrozen(0) }
+                                    )
+                                }
+                            }
+
                         }
-
                     }
 
                     /*Text(
@@ -293,13 +309,14 @@ private fun CameraContent(overlayContent:@Composable()(PaddingValues)->Unit, set
 
                     Box(modifier = Modifier
                         .padding(paddingValues)
-                        .wrapContentSize()
+                        .wrapContentHeight()
+                        .fillMaxWidth()
                         .noRippleClickable {
                             MainActivity.window.decorView.apply {
                                 systemUiVisibility =
                                     View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_FULLSCREEN
                             }; System.out.println("HIDING NAVBAR")
-                        }
+                        }.align(Alignment.BottomCenter)
                     ) {
 
                         if (frozen == 0) {
@@ -327,6 +344,37 @@ private fun CameraContent(overlayContent:@Composable()(PaddingValues)->Unit, set
                                     Icon(
                                         Icons.Filled.Camera,
                                         "Camera capture button",
+                                        modifier = Modifier.size(60.dp)
+                                    )
+                                }
+
+                            }
+
+
+                            Box(
+                                modifier = Modifier
+                                    .wrapContentSize()
+                                    .padding(bottom = 48.dp)
+                                    .align(Alignment.BottomEnd)
+                                    .padding(end=50.dp)
+                            ) {
+                                // rotate
+                                Button(
+                                    onClick = { rotation=(rotation+1)%4 ; TextRecognitionAnalyzer.rotation = rotation*90 },
+                                    shape = CircleShape,
+                                    colors = ButtonDefaults.buttonColors(containerColor = androidx.compose.ui.graphics.Color.LightGray),
+                                    modifier = Modifier
+                                        .border(
+                                            5.dp,
+                                            color = androidx.compose.ui.graphics.Color.Gray,
+                                            shape = CircleShape
+                                        )
+                                        .size(80.dp),
+                                    contentPadding = PaddingValues(0.dp),
+                                ) {
+                                    Icon(
+                                        Icons.Filled.Rotate90DegreesCw,
+                                        "Rotate 90 degrees clockwise",
                                         modifier = Modifier.size(60.dp)
                                     )
                                 }
