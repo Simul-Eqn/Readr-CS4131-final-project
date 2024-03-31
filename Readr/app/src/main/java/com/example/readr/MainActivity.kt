@@ -36,6 +36,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -80,11 +81,13 @@ import androidx.compose.material3.Divider
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
@@ -275,7 +278,7 @@ class MainActivity : ComponentActivity() {
         sttIntent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true) // yes
 
         speechRecognizer.setRecognitionListener(object : RecognitionListener {
-            override fun onReadyForSpeech(bundle: Bundle) { restart() }
+            override fun onReadyForSpeech(bundle: Bundle) { }
             override fun onBeginningOfSpeech() { onBeginSpeech() }
             override fun onRmsChanged(v: Float) {}
             override fun onBufferReceived(bytes: ByteArray) {}
@@ -396,8 +399,9 @@ class MainActivity : ComponentActivity() {
             var loaded by remember { mutableStateOf(false) }
 
             // history
-            loadHistItems( {loaded = true } )
-
+            LaunchedEffect(true) {
+                loadHistItems({ loaded = true })
+            }
 
 
             // dark mode transition prep
@@ -868,7 +872,7 @@ class MainActivity : ComponentActivity() {
 
 
     // for reading view stuff
-    var readText = "text to read. \nThis is a placeholder. \nPlease use the camera feature. "
+    var readText = "text to read. \nThis is a placeholder. \nPlease use the camera feature, or edit this text by pressing the edit button below. "
 
     val wordSplitterRegex = Regex("""[\s\n]+""")
     val alphanumericRegex = Regex("""[a-zA-Z0-9]+""")
@@ -929,13 +933,15 @@ class MainActivity : ComponentActivity() {
         return w1 == w2
     }
 
-    fun getTillWord(readTxt:String, currTxt:String, word:String) : String {
+    fun getTillWord(readTxt:String, currTxt:String, w:String) : String {
         if (readTxt.substring(0, currTxt.length) == currTxt) {
             val n = readTxt.substring(currTxt.length)
 
-            val res = n.substringBefore(word, "")
+            val word = w.split(nonAlphanumericRegex)[0]
 
-            if (res == "" && (n.substring(0, word.length) != word)) {
+            val res = n.substringBefore(word)
+
+            if (res == word && (n.substring(0, word.length) != word)) {
                 throw IllegalArgumentException("Word not found in readTxt after currTxt. ")
             } else {
                 try {
@@ -1012,12 +1018,15 @@ class MainActivity : ComponentActivity() {
                         setCurrs: (String, Int) -> Unit ) {
 
         key(readTxt) {
-            words = readTxt.split(wordSplitterRegex)
+            words = readTxt.split(wordSplitterRegex)//.map{ w -> nonAlphanumericRegex.replace(w, "") }
+
             System.out.print("WORDS: ")
             for (w in words!!) {
                 System.out.print("$w, ")
             }
-            System.out.println()
+            System.out.println("\ncurrWord: $currWord")
+            System.out.println("READTXT LENGTH: ${readTxt.length} ending in: ${if (readTxt.length > 12) readTxt.substring(readTxt.length-10) else ""}")
+            System.out.println("CURRTXT LENGTH: ${currTxt.length} ending in: ${if (currTxt.length > 12) currTxt.substring(currTxt.length-10) else ""}")
             System.out.println("NEXT WORD: ${getNextWord(currWord)}")
         }
 
@@ -1136,7 +1145,7 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    Button({
+                    OutlinedButton({
                         showEditReadTxtDialog = true
                     }, shape=CircleShape, modifier = Modifier
                         .wrapContentSize()
@@ -1153,6 +1162,7 @@ class MainActivity : ComponentActivity() {
                             .padding(start = 8.dp),
                         onClick = {
                         setCurrs(getTillWord(readTxt, currTxt, getNextWord(currWord)), currWord+1)
+                            if (currWord+1 == words!!.size) recompose()
                     }) {
                         Row(
                             modifier = Modifier.height(IntrinsicSize.Min),
@@ -1187,12 +1197,17 @@ class MainActivity : ComponentActivity() {
         }
 
         // show completed dialog if completed :)
-        System.out.println("WORDS SIZE: ${words!!.size} CURRWORD: $currWord")
-        var showCompletedDialog by remember(words, currWord) { mutableStateOf((words != null) and (words!!.size != 0) and (words!!.size == currWord+1)) }
-        ShowCompletedDialog(showCompletedDialog, {
-            showCompletedDialog = false
-            setCurrs("", -1)
-        })
+        key(currWord) {
+            System.out.println("WORDS SIZE: ${words!!.size} CURRWORD: $currWord")
+            var showCompletedDialog by remember(
+                words,
+                currWord
+            ) { mutableStateOf((words != null) and (words!!.size != 0) and (words!!.size == currWord + 1)) }
+            ShowCompletedDialog(showCompletedDialog, {
+                showCompletedDialog = false
+                setCurrs("", -1)
+            })
+        }
 
         ShowEditReadTxtDialog(showEditReadTxtDialog, {showEditReadTxtDialog = !showEditReadTxtDialog}, readTxt, setReadTxt)
 
@@ -1203,8 +1218,11 @@ class MainActivity : ComponentActivity() {
             initSTT(onBeginSpeech = {
                 // probably need nothing here so it's fine
             }, onResults = {
+                if (innerNavTabNo == 0) speechRecognizer.startListening(sttIntent)
                 // prob need nth??
             }, onPartialResults = {
+                if (innerNavTabNo != 0) speechRecognizer.stopListening()
+
                 if (it == null) {
                     Toast.makeText(this, "NO SPEECH DETECTED", Toast.LENGTH_SHORT).show()
                 } else {
@@ -1231,6 +1249,7 @@ class MainActivity : ComponentActivity() {
                             setCurrs(getTillWord(readTxt, currTxt, w), currWord + dwidx+1)
                             //speechRecognizer.stopListening()
                             if ((words != null) and (words!!.size != 0) and (currWord+1 == words!!.size)) {
+                                recompose()
                                 return@initSTT
                             }
                         }
@@ -1243,16 +1262,18 @@ class MainActivity : ComponentActivity() {
                     //Log.d("SPEECH DETECTOR", "SPEECH DETECTED SUCCESSFULLY")
                 }
             }, restart = {
-                if (should_listen) {
-                    speechRecognizer.startListening(sttIntent)
-                }
+                if (innerNavTabNo == 0) speechRecognizer.startListening(sttIntent)
             })
 
 
-        should_listen = false
+        /*should_listen = false
         speechRecognizer.stopListening()
         speechRecognizer.startListening(sttIntent)
-        should_listen = true
+        should_listen = true*/
+
+        LaunchedEffect(true) {
+            speechRecognizer.startListening(sttIntent)
+        }
 
     }
 
@@ -1413,17 +1434,25 @@ class MainActivity : ComponentActivity() {
 
 
                         ForceShowBottomColumn(modifier = Modifier.wrapContentSize(), spacingDP=20, useMaxHeight=false) {
-                            LazyColumn(
-                                modifier = Modifier.heightIn(max=200.dp).wrapContentHeight(),
-                            ) {
-                                item { TextField(txt, { txt = it }, textStyle= LocalTextStyles.current.m) }
-                            }
 
+                            Box(modifier = Modifier
+                                .wrapContentSize()
+                                .padding(16.dp)) {
+                                TextField(
+                                    txt,
+                                    { txt = it },
+                                    textStyle = LocalTextStyles.current.m,
+                                    modifier = Modifier
+                                        .heightIn(max = 200.dp)
+                                        .horizontalScroll(rememberScrollState())
+                                )
+                            }
 
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .wrapContentHeight(),
+                                    .wrapContentHeight()
+                                    .padding(16.dp),
                                 horizontalAlignment = Alignment.End,
                             ) {
                                 Button(modifier = Modifier.wrapContentHeight(), onClick={

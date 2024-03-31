@@ -85,11 +85,13 @@ fun HistoryMoveTextScreen(
 ) {
 
 
-    var leaveFunc: (()->Unit)->Unit = {}
+    var leaveFunc: (()->Unit)->Unit = {it()}
     val setLeaveFunc:((()->Unit)->Unit)->Unit = {newLeaveFunc:(()->Unit)->Unit ->
         leaveFunc = newLeaveFunc
         setOnback({ newLeaveFunc(it) })
     }
+
+
 
     var imgView by remember { mutableStateOf<@Composable()()->Unit>({}) }
     val setImgView: (@Composable()()->Unit)->Unit = { imgView = it }
@@ -344,43 +346,9 @@ fun HistoryMoveTextScreen(
 
                 item { // send to focused reading
                     Button({
-                        try {
-                            TextRecognitionAnalyzer.getScreenShot(MainActivity.window.decorView.rootView) { finalBitmap: Bitmap ->
-                                // SAVE AS FINAL
-                                imgl.withNextImgNum({
-                                    imgl.saveImage(finalBitmap, "image_${it}_final.png")
-                                })
+                        setReadText(text)
+                        goToReadTextScreen()
 
-                                // show notification
-                                sendNotification(
-                                    "Camera Usage Saved!",
-                                    "Used Readr Camera Service. Return to app history page to view or clear usage history. "
-                                )
-
-                                setReadText(text)
-                                goToReadTextScreen()
-
-                            }
-
-
-                        } catch (e: Exception) {
-
-                            Log.println(
-                                Log.ASSERT,
-                                "FINAL SCREENSHOT ERROR",
-                                "CLDNT TAKE SCREENSHOT DURING CAMERA USAGE"
-                            )
-
-                            // show notifications
-                            sendNotification(
-                                "Camera Usage Not saved :(",
-                                "Failed to save usage of accessibility service. The app history page will not show this usage. "
-                            )
-
-                            setReadText(text)
-                            goToReadTextScreen()
-
-                        }
 
                     }) {
                         Row(

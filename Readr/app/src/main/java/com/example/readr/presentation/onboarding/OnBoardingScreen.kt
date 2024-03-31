@@ -66,99 +66,99 @@ val pages = listOf<Page>(
     Page(
         title = "Dashboard",
         description = "Welcome to the Dashboard! View history, or open the accessibility page in Settings to easily find the accessibility menu for this service (explained later). You can also press the camera button to use the camera feature! ",
-        light_image = R.drawable.dashboard,
-        dark_image = R.drawable.dashboard,
+        light_image = R.drawable.dashboard_light,
+        dark_image = R.drawable.dashboard_dark,
     ),
 
     Page(
         title = "History Page",
         description = "After clicking the history icon on the dashboard, you can view a page filled with history items! ",
-        light_image = R.drawable.history_page,
-        dark_image = R.drawable.history_page,
+        light_image = R.drawable.history_page_light,
+        dark_image = R.drawable.history_page_dark,
     ),
 
     Page(
         title = "History Item",
-        description = "Here, you can view your past uses of the app! If you accidentally closed, or just want to see something you were looking at before, you can click one of these! ",
-        light_image = R.drawable.history_item_page,
-        dark_image = R.drawable.history_item_page,
+        description = "In this screen, you can view your past uses of the app! If you accidentally closed, or just want to see something you were looking at before, you can click one of these! You can also adjust the position of the text. ",
+        light_image = R.drawable.history_item_page_light,
+        dark_image = R.drawable.history_item_page_dark,
     ),
 
     Page(
         title = "Settings",
-        description = "Here, you can change the size of text displayed in this app, or the size of text drawn by the accessibility menu or camera feature. ",
-        light_image = R.drawable.settings,
-        dark_image = R.drawable.settings,
+        description = "In this screen, you can change the size of text displayed in this app, or the size of text drawn by the accessibility menu or camera feature. ",
+        light_image = R.drawable.settings_light,
+        dark_image = R.drawable.settings_dark,
     ),
 
     Page(
         title = "Camera (when using) ",
         description = "When you click the camera icon, the app will detect the text in the image and display it! Use the sliders at the bottom and right to adjust the position of text displayed, and the slider above to adjust the text size. Click the button below to capture that screen with the camera. ",
-        light_image = R.drawable.camera_using,
-        dark_image = R.drawable.camera_using,
+        light_image = R.drawable.camera_using_light,
+        dark_image = R.drawable.camera_using_dark,
     ),
 
     Page(
         title = "Camera (when done)",
         description = "After clicking the camera capture button, you will see this screen, where you can easily view the text, and choose from a list of actions to take from the bottom, which is scrollable. ",
-        light_image = R.drawable.camera_done,
-        dark_image = R.drawable.camera_done,
+        light_image = R.drawable.camera_done_light,
+        dark_image = R.drawable.camera_done_dark,
     ),
 
     Page(
         title = "Camera (copying dialog) ",
         description = "If you click the \"Select all\" button, you will see this dialog, and you can easily copy the text to your clipboard. (it is scrollable)",
-        light_image = R.drawable.camera_copy,
-        dark_image = R.drawable.camera_copy,
+        light_image = R.drawable.camera_copy_light,
+        dark_image = R.drawable.camera_copy_dark,
     ),
 
     Page(
         title = "Gallery",
         description = "If you click the button at the bottom left of the camera, will get a dialog to choose an image, and will get to this screen. ",
-        light_image = R.drawable.gallery,
-        dark_image = R.drawable.gallery,
+        light_image = R.drawable.gallery_light,
+        dark_image = R.drawable.gallery_dark,
     ),
 
     Page(
         title = "Reading",
         description = "If you choose to send to focused reading, or click the button, you may enter Focused Reading mode. The app will detect if you read the words and mark your progress, while you can use the help or skip buttons below if you are stuck. ",
-        light_image = R.drawable.read_init,
-        dark_image = R.drawable.read_init,
+        light_image = R.drawable.read_init_light,
+        dark_image = R.drawable.read_init_dark,
     ),
 
     Page(
         title = "Reading (completed)",
         description = "After finishing reading the piece of text, you will be rewarded with confetti, claps, and an amazing quote! Tap anywhere to dismiss. ",
-        light_image = R.drawable.read_complete,
-        dark_image = R.drawable.read_complete,
+        light_image = R.drawable.read_complete_light,
+        dark_image = R.drawable.read_complete_dark,
     ),
 
     Page(
         title = "More functions",
         description = "There may also be other functions you can use if you press the three dots on the top right ;) (there's an amazing animation waiting for you :O) You may return to this page through this menu :) ",
-        light_image = R.drawable.more_actions,
-        dark_image = R.drawable.more_actions,
+        light_image = R.drawable.more_actions_light,
+        dark_image = R.drawable.more_actions_dark,
     ),
 
     Page(
         title = "Accessibility Service",
         description = "If you recall the button on the dashboard, it takes you to this settings screen for you to enable the accessibility service for this application. ",
-        light_image = R.drawable.amenu_settings_page_outer,
-        dark_image = R.drawable.amenu_settings_page_outer,
+        light_image = R.drawable.amenu_settings_page_outer_light,
+        dark_image = R.drawable.amenu_settings_page_outer_dark,
     ),
 
     Page(
         title = "Accessibility Shortcut",
-        description = "Enable the shortcut as shown, and you can see a floating accessibility button. This can be hidden at the edge of the screen (as shown in this image) ",
-        light_image = R.drawable.amenu_settings_page_inner,
-        dark_image = R.drawable.amenu_settings_page_inner,
+        description = "Enable the shortcut as shown, and you can see a floating accessibility button. Clicking this will active the accessibility service on your screen. ",
+        light_image = R.drawable.amenu_settings_page_inner_light,
+        dark_image = R.drawable.amenu_settings_page_inner_dark,
     ),
 
     Page(
         title = "Accessibility Service Usage",
         description = "When you click the button, text will appear above your screen, using a very readable and cute font :) (OpenDyslexic). The big red X closes this, and lets you continue with whatever you were doing. (the X is also hidden in the history record!)",
-        light_image = R.drawable.amenu_usage,
-        dark_image = R.drawable.amenu_usage,
+        light_image = R.drawable.amenu_usage_light,
+        dark_image = R.drawable.amenu_usage_dark,
     ),
 
 
