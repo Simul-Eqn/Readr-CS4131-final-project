@@ -101,6 +101,7 @@ fun CollapsedTopBar(
     isCollapsed: Boolean,
     title:String,
     textScale: Float = Variables.textScale,
+    recomposeBool:Boolean = false,
     MenuOptions:@Composable() (() -> Unit),
 ) {
     val color: Color by animateColorAsState(
@@ -112,15 +113,15 @@ fun CollapsedTopBar(
             .fillMaxWidth()
             .height(COLLAPSED_TOP_BAR_HEIGHT)
             .padding(16.dp)
-            .forceRecomposeWith(textScale),
+            .forceRecomposeWith(textScale).forceRecomposeWith(recomposeBool),
         contentAlignment = Alignment.BottomEnd,
     ) {
         AnimatedVisibility(
-            modifier = Modifier.align(Alignment.BottomStart).forceRecomposeWith(textScale),
+            modifier = Modifier.align(Alignment.BottomStart).forceRecomposeWith(textScale).forceRecomposeWith(recomposeBool),
             visible = isCollapsed
         ) {
             Text(text = title, color = MaterialTheme.colorScheme.primary, style = TextStyle(fontSize=20.sp, fontFamily= openDyslexic),
-                modifier = Modifier.forceRecomposeWith(textScale))
+                modifier = Modifier.forceRecomposeWith(textScale).forceRecomposeWith(recomposeBool).forceRecomposeWith(Variables.textFontFamily))
         }
 
 
@@ -164,6 +165,7 @@ fun WrapInColllapsedTopBar(padding: PaddingValues,
                            topBarTitle: String,
                            showAnyways: Boolean,
                            textScale: Float = Variables.textScale, // for forcing recompose
+                           recomposeBool: Boolean = false,
                            content:@Composable()()->Unit) {
 
     val overlapHeightPx = with(LocalDensity.current) {
@@ -188,7 +190,7 @@ fun WrapInColllapsedTopBar(padding: PaddingValues,
     ) {
 
         Box() {
-            CollapsedTopBar(modifier = Modifier.zIndex(2f), isCollapsed=(isCollapsed || showAnyways), topBarTitle, textScale) {
+            CollapsedTopBar(modifier = Modifier.zIndex(2f), isCollapsed=(isCollapsed || showAnyways), topBarTitle, textScale, recomposeBool) {
                 for (ddItem in dropdownItems) ddItem.Show()
             }
 

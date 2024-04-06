@@ -24,6 +24,7 @@ class ImageLoader {
     fun withNextImgNum(f:(Int)->Unit, onFailure: (Exception) -> Unit={}) {
         try {
             storageRef.listAll().addOnSuccessListener {
+                System.out.println("NUMBER OF ITEMS: ${it.items.size/2}")
                 f(it.items.size / 2)
             }.addOnFailureListener { onFailure(it) }
         } catch (e:Exception) {

@@ -8,14 +8,21 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -32,6 +39,10 @@ import com.example.readr.ui.theme.LocalTextStyles
 
 @Composable
 fun BottomBar(idx:Int, setIdx:(Int)->Unit, tab_titles:List<String>, tab_images:List<Any>) {
+    var initStyle = LocalTextStyles.current.l
+    var textStyle by remember { mutableStateOf(initStyle) }
+    var displayText by remember { mutableStateOf(false) }
+
     BottomAppBar(
         modifier = Modifier
             .heightIn(min=75.dp, max=75.dp)
@@ -86,13 +97,30 @@ fun BottomBar(idx:Int, setIdx:(Int)->Unit, tab_titles:List<String>, tab_images:L
                             }
                         },
                         text = {
-                            Text(
+                            /*Text(
                                 name,
                                 //style = LocalTextStyles.current.m,
                                 style = TextStyle(fontSize = 16.sp, fontFamily= openDyslexic),
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis,
                                 textAlign = TextAlign.Center
+                            )*/
+                            Text(
+                                name,
+                                modifier = Modifier.wrapContentWidth()
+                                    .drawWithContent{ if (displayText) drawContent() }
+                                    .alpha(if (displayText) 1.0f else 0.0f),
+                                style= textStyle,
+                                maxLines=1,
+                                softWrap=false,
+                                textAlign = TextAlign.Center,
+                                onTextLayout = {
+                                    if (it.didOverflowWidth) {
+                                        textStyle = textStyle.copy(fontSize = textStyle.fontSize * 0.95)
+                                    } else {
+                                        displayText = true
+                                    }
+                                }
                             )
                         },
                         modifier = Modifier.height(70.dp)

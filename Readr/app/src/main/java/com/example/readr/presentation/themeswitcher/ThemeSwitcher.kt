@@ -18,6 +18,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.filled.Nightlight
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CropFree
+import androidx.compose.material.icons.filled.Square
+import androidx.compose.material.icons.filled.TextFormat
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -25,6 +28,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -101,3 +105,146 @@ fun ThemeSwitcher(
         }
     }
 }
+
+@Composable
+fun TextColorSwitcher(
+    blackText: Boolean = false,
+    size: Dp = 50.dp,
+    iconSize: Dp = size / 3,
+    padding: Dp = 5.dp,
+    borderWidth: Dp = 1.dp,
+    parentShape: Shape = CircleShape,
+    toggleShape: Shape = CircleShape,
+    animationSpec: AnimationSpec<Dp> = tween(durationMillis = 300),
+    onClick: () -> Unit
+) {
+    val offset by animateDpAsState(
+        targetValue = if (blackText) 0.dp else size,
+        animationSpec = animationSpec
+    )
+
+    Box(modifier = Modifier
+        .width(size * 2)
+        .height(size)
+        .clip(shape = parentShape)
+        .clickable { onClick() }
+        .background(MaterialTheme.colorScheme.secondaryContainer)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(size)
+                .offset(x = offset)
+                .padding(all = padding)
+                .clip(shape = toggleShape)
+                .background(MaterialTheme.colorScheme.primary)
+        ) {}
+        Row(
+            modifier = Modifier
+                .border(
+                    border = BorderStroke(
+                        width = borderWidth,
+                        color = MaterialTheme.colorScheme.primary
+                    ),
+                    shape = parentShape
+                )
+        ) {
+            Box(
+                modifier = Modifier.size(size),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    modifier = Modifier.size(iconSize),
+                    imageVector = Icons.Filled.TextFormat,
+                    contentDescription = "Black text",
+                    tint = Color.Black
+                )
+            }
+            Box(
+                modifier = Modifier.size(size),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    modifier = Modifier.size(iconSize),
+                    imageVector = Icons.Filled.TextFormat,
+                    contentDescription = "White text",
+                    tint = Color.White
+                )
+            }
+        }
+    }
+}
+
+
+
+@Composable
+fun ShowBgToggler(
+    displayBg: Boolean = false,
+    oppColor:Float = 0f,
+    size: Dp = 50.dp,
+    iconSize: Dp = size / 3,
+    padding: Dp = 5.dp,
+    borderWidth: Dp = 1.dp,
+    parentShape: Shape = CircleShape,
+    toggleShape: Shape = CircleShape,
+    animationSpec: AnimationSpec<Dp> = tween(durationMillis = 300),
+    onClick: () -> Unit
+) {
+    val offset by animateDpAsState(
+        targetValue = if (!displayBg) 0.dp else size,
+        animationSpec = animationSpec
+    )
+
+    Box(modifier = Modifier
+        .width(size * 2)
+        .height(size)
+        .clip(shape = parentShape)
+        .clickable { onClick() }
+        .background(MaterialTheme.colorScheme.secondaryContainer)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(size)
+                .offset(x = offset)
+                .padding(all = padding)
+                .clip(shape = toggleShape)
+                .background(MaterialTheme.colorScheme.primary)
+        ) {}
+        Row(
+            modifier = Modifier
+                .border(
+                    border = BorderStroke(
+                        width = borderWidth,
+                        color = MaterialTheme.colorScheme.primary
+                    ),
+                    shape = parentShape
+                )
+        ) {
+            Box(
+                modifier = Modifier.size(size),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    modifier = Modifier.size(iconSize),
+                    imageVector = Icons.Filled.CropFree,
+                    contentDescription = "No background",
+                    tint = Color(1f-oppColor, 1f-oppColor, 1f-oppColor)
+                )
+            }
+            Box(
+                modifier = Modifier.size(size),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    modifier = Modifier.size(iconSize),
+                    imageVector = Icons.Filled.Square,
+                    contentDescription = "Contrasting background ",
+                    tint = Color(1f-oppColor, 1f-oppColor, 1f-oppColor)
+                )
+            }
+        }
+    }
+}
+
+
+
+

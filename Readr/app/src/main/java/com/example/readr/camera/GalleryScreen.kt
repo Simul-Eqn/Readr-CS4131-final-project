@@ -3,9 +3,11 @@ package com.example.readr.camera
 import android.graphics.Bitmap
 import android.net.Uri
 import android.provider.MediaStore
+import android.speech.tts.TextToSpeech
 import android.util.DisplayMetrics
 import android.util.Log
 import android.view.View
+import android.widget.Toast
 import androidx.activity.compose.ManagedActivityResultLauncher
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -14,6 +16,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -34,6 +37,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -65,6 +69,8 @@ import com.example.readr.noRippleClickable
 import com.example.readr.customcomposables.ChangeReplacedTextSizeSlider
 import com.example.readr.presentation.onscaffold.DDItem
 import com.example.readr.presentation.onscaffold.DisplayTopBar
+import com.example.readr.presentation.themeswitcher.ShowBgToggler
+import com.example.readr.presentation.themeswitcher.TextColorSwitcher
 import com.example.readr.ui.theme.LocalTextStyles
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
@@ -99,7 +105,7 @@ fun GalleryScreen(
     var leaveFunc: (()->Unit)->Unit = {}
     val setLeaveFunc:((()->Unit)->Unit)->Unit = {newLeaveFunc:(()->Unit)->Unit ->
         leaveFunc = newLeaveFunc
-        setOnback({ newLeaveFunc(it) })
+        setOnback({ MainActivity.textToSpeech.stop() ; newLeaveFunc(it) })
     }
 
     var imgView by remember { mutableStateOf<@Composable()()->Unit>({}) }
@@ -192,11 +198,15 @@ fun GalleryScreen(
 
                             var addOffsetX by remember { mutableStateOf(0.0f) }
                             var addOffsetY by remember { mutableStateOf(0.0f) }
+                            var bgColor by remember { mutableStateOf(0f) }
+                            var displayBg by remember { mutableStateOf(false) }
 
                             @Composable
                             fun DisplayText(
                                 addOffsetX: Float, setAddOffsetX: (Float) -> Unit,
-                                addOffsetY: Float, setAddOffsetY: (Float) -> Unit
+                                addOffsetY: Float, setAddOffsetY: (Float) -> Unit,
+                                bgColor: Float, setBgColor: (Float)->Unit,
+                                displayBg: Boolean, toggleDisplayBg: ()->Unit,
                             ) {
 
                                 fun pxToDP(px: Double): Int {
@@ -228,7 +238,13 @@ fun GalleryScreen(
                                     for (textBlock in visionText.textBlocks) {
                                         if (true) {
                                             Button(
-                                                {},
+                                                {
+                                                    try {
+                                                        MainActivity.textToSpeech.speak(textBlock.text, TextToSpeech.QUEUE_FLUSH, null, "tts1")
+                                                    } catch (e:Exception) {
+                                                        Toast.makeText(MainActivity.context, "Error reading text.", Toast.LENGTH_SHORT).show()
+                                                    }
+                                                },
                                                 modifier = Modifier
                                                     .offset(
                                                         (pxToDP(textBlock.boundingBox!!.left * scale) + addOffsetX).dp,
@@ -238,15 +254,17 @@ fun GalleryScreen(
                                                 shape = RectangleShape,
                                                 contentPadding = PaddingValues(0.dp),
                                                 colors = ButtonDefaults.buttonColors(
-                                                    containerColor = MaterialTheme.colorScheme.background
+                                                    containerColor =
+                                                    if (displayBg) Color(1-bgColor, 1-bgColor, 1-bgColor)
+                                                    else Color.Transparent
+
                                                 ),
                                             ) {
                                                 Text(
                                                     textBlock.text,
                                                     modifier = Modifier.padding(0.dp).forceRecomposeWith(MaterialTheme.colorScheme.background),
                                                     style = TextStyle(
-                                                        color = if (MainActivity.isDarkTheme) Color.White
-                                                        else Color.Black,
+                                                        color = Color(bgColor, bgColor, bgColor),
                                                         fontSize = fontSize.sp,
                                                         fontFamily = Variables.overlayFontFamily
                                                     )
@@ -262,9 +280,36 @@ fun GalleryScreen(
                                     ,
                                     contentAlignment = Alignment.TopCenter
                                 ) {
-                                    ChangeReplacedTextSizeSlider(fontSize) {
-                                        fontSize = it
-                                        Variables.overlayTextSize = it
+                                    Column(modifier = Modifier.wrapContentHeight(),) {
+                                        ChangeReplacedTextSizeSlider(fontSize) {
+                                            fontSize = it
+                                            Variables.overlayTextSize = it
+                                        }
+
+
+
+                                        Row(modifier = Modifier.fillMaxWidth().wrapContentHeight().padding(16.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween) {
+
+                                            Box(
+                                                modifier = Modifier.wrapContentSize()
+                                            ) {
+                                                TextColorSwitcher(Math.round(bgColor) == 0) {
+                                                    setBgColor(1 - bgColor)
+                                                }
+                                            }
+
+                                            Box(
+                                                modifier = Modifier.wrapContentSize()
+                                            ) {
+                                                ShowBgToggler(displayBg, oppColor=bgColor) {
+                                                    toggleDisplayBg()
+                                                }
+                                            }
+
+                                        }
+
+
                                     }
                                 }
 
@@ -346,7 +391,11 @@ fun GalleryScreen(
                                 addOffsetX,
                                 { addOffsetX = it },
                                 addOffsetY,
-                                { addOffsetY = it })
+                                { addOffsetY = it },
+                                bgColor,
+                                { bgColor = it },
+                                displayBg,
+                                { TextRecognitionAnalyzer.displayBg = !displayBg ; displayBg = !displayBg })
 
 
 

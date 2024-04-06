@@ -101,13 +101,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
@@ -117,6 +120,7 @@ import androidx.core.app.ActivityCompat
 import androidx.core.view.WindowCompat
 import com.example.readr.camera.CameraScreen
 import com.example.readr.customcomposables.AdaptiveText
+import com.example.readr.customcomposables.ChangeFontFamilyItem
 import com.example.readr.customcomposables.ChangeReplacedTextSizeSlider
 import com.example.readr.customcomposables.ChangeTextScaleSlider
 import com.example.readr.customcomposables.ForceShowBottomColumn
@@ -164,6 +168,10 @@ class MainActivity : ComponentActivity() {
             return (px / context.resources.displayMetrics.density)
         }
 
+
+        // TTS
+        lateinit var textToSpeech: TextToSpeech
+
     }
 
     // in main view, 0. other outernavigation things do not have tabs (?)
@@ -176,8 +184,6 @@ class MainActivity : ComponentActivity() {
     var outerNavPageNo:Int = 0
     var innerNavTabNo:Int = 1
 
-    // TTS
-    lateinit var textToSpeech: TextToSpeech
 
     // STT
     private lateinit var speechRecognizer: SpeechRecognizer
@@ -196,35 +202,39 @@ class MainActivity : ComponentActivity() {
 
     // onboarding page numbers, for help
     val onboardingInitPageNum = mapOf<Int, Int?>( // first digit (tens) is outernav, second (ones) is innernav
-        // 1 to 2
-        0 to 9, // reading view
-        1 to 1, // dashboard
-        2 to 4, // settings
-        10 to 5, // camera
-        11 to 5, // camera
-        12 to 5, // camera
-        20 to 2, // history item
-        21 to 2, // history item
-        22 to 2, // history item
-        30 to 2,
-        31 to 2,
-        32 to 2,
+        0 to 13, // reading view
+        1 to 5, // dashboard
+        2 to 8, // settings
+        10 to 9, // camera/gallery
+        11 to 9, // camera/gallery
+        12 to 9, // camera/gallery
+        20 to 6, // history item
+        21 to 6, // history item
+        22 to 6, // history item
+        30 to 6, // history item
+        31 to 6, // history item
+        32 to 6, // history item
+        40 to 6, // history item
+        41 to 6, // history item
+        42 to 6, // history item
     )
 
     val onboardingEndPageNum = mapOf<Int, Int?>( // first digit (tens) is outernav, second (ones) is innernav
-        // 1 to 2
-        0 to 10, // reading view
-        1 to 1, // dashboard
-        2 to 4, // settings
-        10 to 8, // camera
-        11 to 8, // camera
-        12 to 8, // camera
-        20 to 3, // history item
-        21 to 3, // history item
-        22 to 3, // history item
-        30 to 3,
-        31 to 3,
-        32 to 3,
+        0 to 14, // reading view
+        1 to 5, // dashboard
+        2 to 8, // settings
+        10 to 12, // camera/gallery
+        11 to 12, // camera/gallery
+        12 to 12, // camera/gallery
+        20 to 7, // history item
+        21 to 7, // history item
+        22 to 7, // history item
+        30 to 7, // history item
+        31 to 7, // history item
+        32 to 7, // history item
+        40 to 7, // history item
+        41 to 7, // history item
+        42 to 7, // history item
     )
 
 
@@ -375,12 +385,11 @@ class MainActivity : ComponentActivity() {
             darkTheme = (cursor!!.getInt(cursor!!.getColumnIndex(PersistentStorage.rdm)) == 1)
             MainActivity.isDarkTheme = darkTheme
         }
+        cursor.close()
 
 
         setContent {
 
-
-            cursor.close()
             var finishedOnboarding by remember { mutableStateOf(temp) }
             var onboardingInitPage:Int? by remember { mutableStateOf<Int?>(null) }
             var onboardingEndPage:Int? by remember { mutableStateOf<Int?>(null) }
@@ -461,14 +470,18 @@ class MainActivity : ComponentActivity() {
                                     .fillMaxWidth()
                                     .wrapContentHeight(),
                                 horizontalArrangement = Arrangement.spacedBy(LocalSpacings.current.m),
+                                verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                Text("Theme: ", style = LocalTextStyles.current.m)
-                                ThemeSwitcher(darkTheme = localDarkTheme, onClick = {
+                                var textHeight by remember { mutableStateOf(0f) }
+                                Text("Theme: ", style = LocalTextStyles.current.m,
+                                    modifier = Modifier.wrapContentSize(),
+                                    onTextLayout = { textHeight = pxToDP(it.size.height) ; System.out.println("THEME TEXT HEIGHT: $textHeight") })
+                                ThemeSwitcher(darkTheme = localDarkTheme, size=Math.max(((30*Variables.textScale)*(if (Variables.textFontFamily == openDyslexic) 1f else 0.5f)), 30f).dp, onClick = {
 
-                                    if ((outerNavPageNo == 1) and (innerNavTabNo == 1)) {
+                                    /*if ((outerNavPageNo == 1) and (innerNavTabNo == 1)) {
                                         Toast.makeText(this@MainActivity, "Cannot switch theme while using camera/gallery.", Toast.LENGTH_SHORT).show()
                                         return@ThemeSwitcher
-                                    }
+                                    }*/
 
                                     scope.launch {
                                         screenShotState.capture()
@@ -493,7 +506,7 @@ class MainActivity : ComponentActivity() {
                     )
                 )
 
-                // add replay onboarding screen thing
+                // add help thing
                 dropdownItems.add(
                     DDItem(
                         {
@@ -511,7 +524,30 @@ class MainActivity : ComponentActivity() {
                                 onboardingInitPageNum[outerNavPageNo * 10 + innerNavTabNo]
                             onboardingEndPage =
                                 onboardingEndPageNum[outerNavPageNo * 10 + innerNavTabNo]
-                            System.out.println("RESHOWING ONBOARDING: $onboardingInitPage and $onboardingEndPage")
+                            //System.out.println("RESHOWING ONBOARDING: $onboardingInitPage and $onboardingEndPage")
+                            finishedOnboarding = false // re-show onboarding screen yey
+                        },
+                    )
+                )
+
+
+                // add replay onboarding screen fully
+                dropdownItems.add(
+                    DDItem(
+                        {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .wrapContentHeight(),
+                                horizontalArrangement = Arrangement.spacedBy(LocalSpacings.current.m),
+                            ) {
+                                Text("Features", style = LocalTextStyles.current.m)
+                            }
+                        },
+                        {
+                            onboardingInitPage = null
+                            onboardingEndPage = null
+                            //System.out.println("RESHOWING ONBOARDING: $onboardingInitPage and $onboardingEndPage")
                             finishedOnboarding = false // re-show onboarding screen yey
                         },
                     )
@@ -523,6 +559,7 @@ class MainActivity : ComponentActivity() {
 
 
             }
+
 
 
             //window.decorView.apply { systemUiVisibility = View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_FULLSCREEN }
@@ -606,6 +643,13 @@ class MainActivity : ComponentActivity() {
                 SplashScreen()
             }
 
+
+            LaunchedEffect(true) {
+                onboardingInitPage = 0
+                onboardingEndPage = 4
+            }
+
+
         }
     }
 
@@ -672,17 +716,17 @@ class MainActivity : ComponentActivity() {
                 modifier = Modifier
                     .fillMaxSize()
                     .background(MaterialTheme.colorScheme.background),
-                bottomBar = { BottomBar( pagerState.currentPage, { setIdx(it) ; should_listen = false ; speechRecognizer.stopListening() } , tab_titles , tab_images ) },
+                bottomBar = { key(recomposeBool) { BottomBar( pagerState.currentPage, { setIdx(it) ; should_listen = false ; speechRecognizer.stopListening() } , tab_titles , tab_images ) } },
                 floatingActionButton = {
                     if (pagerState.currentPage==1) FloatingActionButton( onClick = {
                         setViewNo(1)
                         window.decorView.apply { systemUiVisibility = View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_FULLSCREEN }
-                                                                }, containerColor=MaterialTheme.colorScheme.secondary )
-                    { Image(painterResource(R.drawable.camera_icon), "Camera button",
-                        modifier = Modifier.size(100.dp)) } },
+                                                                }, containerColor=MaterialTheme.colorScheme.secondaryContainer, contentColor = MaterialTheme.colorScheme.secondary )
+                    { Image(painter=painterResource(R.drawable.camera_icon), contentDescription="Camera button",
+                        modifier = Modifier.size(100.dp), colorFilter = ColorFilter.tint(if (darkTheme) Color.LightGray else Color.Black ))} },
             ) {
                 val listState = rememberLazyListState()
-                WrapInColllapsedTopBar(it, listState, dropdownItems, topBarTitle, true) {
+                WrapInColllapsedTopBar(it, listState, dropdownItems, topBarTitle, true, Variables.textScale, recomposeBool) {
 
                     var toggle by remember { mutableStateOf(false) }
 
@@ -876,6 +920,7 @@ class MainActivity : ComponentActivity() {
 
     val wordSplitterRegex = Regex("""[\s\n]+""")
     val alphanumericRegex = Regex("""[a-zA-Z0-9]+""")
+    val nonAlphaSpaceRegex = Regex("""[^a-zA-Z0-9\s\n]""")
     val nonAlphanumericRegex = Regex("""[^a-zA-Z0-9]""")
 
     /*fun getCurrWord(readTxt:String, currTxt:String): String {
@@ -1018,7 +1063,16 @@ class MainActivity : ComponentActivity() {
                         setCurrs: (String, Int) -> Unit ) {
 
         key(readTxt) {
-            words = readTxt.split(wordSplitterRegex)//.map{ w -> nonAlphanumericRegex.replace(w, "") }
+            words = nonAlphaSpaceRegex.replace(readTxt, "").split(wordSplitterRegex)//.map{ w -> nonAlphanumericRegex.replace(w, "") }
+            val temp = words!!.toMutableList()
+            val iterator = temp.iterator()
+            while (iterator.hasNext()) {
+                val element = iterator.next()
+                if (element.isEmpty()) {
+                    iterator.remove()
+                }
+            }
+            words = temp.toList()
 
             System.out.print("WORDS: ")
             for (w in words!!) {
@@ -1048,19 +1102,12 @@ class MainActivity : ComponentActivity() {
         ) {
             ForceShowBottomColumn(
                 modifier = Modifier.fillMaxSize(),
-                //horizontalAlignment = Alignment.CenterHorizontally,
-                //verticalArrangement = Arrangement.spacedBy(20.dp),
                 spacingDP = 16
             ) {
 
-                //Text("FOCUSED READING OUT LOUD MODE", style = LocalTextStyles.current.xl)
-
-                //val box_height = (getSystemService(WINDOW_SERVICE) as WindowManager).defaultDisplay.height * 0.7f
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        //.fillMaxWidth()
-                        //.heightIn(min=box_height.dp, max=box_height.dp)
                         .verticalScroll(rememberScrollState())
                     ,
                 ) {
@@ -1701,6 +1748,21 @@ class MainActivity : ComponentActivity() {
                 recomposeOuter()
                 recompose()
             }, extra, {extra++})
+
+
+            ChangeFontFamilyItem(if (Variables.textFontFamily== openDyslexic) 0 else 1,
+                { fontNum:Int ->
+                    if (fontNum==0) {
+                        Variables.textFontFamily = openDyslexic
+                        Variables.overlayFontFamily = openDyslexic
+                    } else if (fontNum == 1) {
+                        Variables.textFontFamily = FontFamily.SansSerif
+                        Variables.overlayFontFamily = FontFamily.SansSerif
+                    }
+                    recomposeOuter()
+                    recompose()
+                    },
+                extra, {extra++} )
         }
 
     }

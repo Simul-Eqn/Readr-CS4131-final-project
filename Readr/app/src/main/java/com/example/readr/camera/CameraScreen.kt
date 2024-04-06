@@ -98,6 +98,8 @@ fun CameraScreen(backButtonFunc: () -> Unit, sendNotification: (String, String) 
     //var addOffsetY:Float by remember { mutableFloatStateOf(0f) }
     //var addOffsetX:Float by remember { mutableFloatStateOf(0f) }
 
+    setOnback({ MainActivity.textToSpeech.stop() ; initOnback()})
+
 
     ProvideTextStyle(TextStyle(color= MaterialTheme.colorScheme.onBackground)) {
 
@@ -116,16 +118,16 @@ fun CameraScreen(backButtonFunc: () -> Unit, sendNotification: (String, String) 
                 setReadText,
                 goToReadTextScreen,
                 dropdownItems,
-                { setCamera(false) },
+                { setCamera(false) ; MainActivity.textToSpeech.stop() },
                 setOnback,
                 initOnback,
             )
 
         } else { // gallery
-            setOnback({ setCamera(true) ; initOnback() })
+            setOnback({ setCamera(true) ; MainActivity.textToSpeech.stop() ; initOnback() })
             GalleryScreen({ setCamera(true) }, dropdownItems, sendNotification, setReadText,
-                goToReadTextScreen, { setOnback { if (it != null) it{ setCamera(true) ; initOnback() } } },
-                { setCamera(true) ; initOnback() } )
+                goToReadTextScreen, { setOnback { if (it != null) it{ setCamera(true) ; MainActivity.textToSpeech.stop(); initOnback() } } },
+                { setCamera(true) ; MainActivity.textToSpeech.stop() ; initOnback() } )
         }
 
     }
@@ -299,13 +301,11 @@ private fun CameraContent(overlayContent:@Composable()(PaddingValues)->Unit, set
                 text = detectedText,
             )*/
 
-                    System.out.println("RECOMPOSED OVERLAY CONTENT: ${overlayContent}")
+                    //System.out.println("RECOMPOSED OVERLAY CONTENT: ${overlayContent}")
 
-                    if (frozen == 0) {
-                        overlayContent(paddingValues)
-                    }
 
-                    System.out.println("FROZEN: $frozen")
+
+                    //System.out.println("FROZEN: $frozen")
 
                     Box(modifier = Modifier
                         .padding(paddingValues)
@@ -321,12 +321,16 @@ private fun CameraContent(overlayContent:@Composable()(PaddingValues)->Unit, set
 
                         if (frozen == 0) {
 
+                            overlayContent(paddingValues)
+
                             Box(
                                 modifier = Modifier
-                                    .wrapContentSize()
-                                    .padding(bottom = 48.dp)
+                                    .wrapContentHeight()
+                                    .fillMaxWidth()
+                                    .padding(bottom = 48.dp, start=50.dp, end=50.dp)
                                     .align(Alignment.BottomCenter)
                             ) {
+
                                 // freeze button
                                 Button(
                                     onClick = { setFrozen(1); System.out.println("IN BUTTON FROZEN: $frozen") },
@@ -338,7 +342,8 @@ private fun CameraContent(overlayContent:@Composable()(PaddingValues)->Unit, set
                                             color = androidx.compose.ui.graphics.Color.Gray,
                                             shape = CircleShape
                                         )
-                                        .size(80.dp),
+                                        .size(80.dp)
+                                        .align(Alignment.BottomCenter),
                                     contentPadding = PaddingValues(0.dp),
                                 ) {
                                     Icon(
@@ -348,16 +353,8 @@ private fun CameraContent(overlayContent:@Composable()(PaddingValues)->Unit, set
                                     )
                                 }
 
-                            }
 
 
-                            Box(
-                                modifier = Modifier
-                                    .wrapContentSize()
-                                    .padding(bottom = 48.dp)
-                                    .align(Alignment.BottomEnd)
-                                    .padding(end=50.dp)
-                            ) {
                                 // rotate
                                 Button(
                                     onClick = { rotation=(rotation+1)%4 ; TextRecognitionAnalyzer.rotation = rotation*90 },
@@ -369,7 +366,8 @@ private fun CameraContent(overlayContent:@Composable()(PaddingValues)->Unit, set
                                             color = androidx.compose.ui.graphics.Color.Gray,
                                             shape = CircleShape
                                         )
-                                        .size(80.dp),
+                                        .size(80.dp)
+                                        .align(Alignment.BottomEnd),
                                     contentPadding = PaddingValues(0.dp),
                                 ) {
                                     Icon(
@@ -379,7 +377,10 @@ private fun CameraContent(overlayContent:@Composable()(PaddingValues)->Unit, set
                                     )
                                 }
 
+
                             }
+
+
 
 
                         } else {
@@ -451,6 +452,8 @@ private fun CameraContent(overlayContent:@Composable()(PaddingValues)->Unit, set
                         }
 
                     }
+
+
 
                 }
 

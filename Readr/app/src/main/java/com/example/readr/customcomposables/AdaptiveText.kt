@@ -9,11 +9,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 
-class AdaptiveText(val text:String, val initStyle: TextStyle, val maxLines:Int, val softWrap:Boolean, val modifier: Modifier=Modifier, val showAnyways:Boolean = false) {
+class AdaptiveText(val text:String, val initStyle: TextStyle, val maxLines:Int, val softWrap:Boolean,
+                   val modifier: Modifier=Modifier, val showAnyways:Boolean = false) {
     @Composable
     fun ShowOverflowWidth() { // if maxLines=1
         var titleTextStyle by remember { mutableStateOf(initStyle) }
@@ -22,7 +24,9 @@ class AdaptiveText(val text:String, val initStyle: TextStyle, val maxLines:Int, 
 
         Text(
             text,
-            modifier = modifier.wrapContentWidth().drawWithContent{ if (displayTitle or showAnyways) drawContent() },
+            modifier = modifier.wrapContentWidth()
+                .drawWithContent{ if (displayTitle or showAnyways) drawContent() }
+                .alpha(if (displayTitle) 1.0f else 0.0f),
             style= titleTextStyle,
             maxLines=maxLines,
             softWrap=softWrap,
@@ -44,7 +48,9 @@ class AdaptiveText(val text:String, val initStyle: TextStyle, val maxLines:Int, 
 
         Text(
             text,
-            modifier = modifier.wrapContentHeight().drawWithContent{ if (displayTitle or showAnyways) drawContent() },
+            modifier = modifier.wrapContentHeight()
+                .drawWithContent{ if (displayTitle or showAnyways) drawContent() }
+                .alpha(if (displayTitle) 1.0f else 0.0f),
             style= titleTextStyle,
             maxLines=maxLines,
             softWrap=softWrap,

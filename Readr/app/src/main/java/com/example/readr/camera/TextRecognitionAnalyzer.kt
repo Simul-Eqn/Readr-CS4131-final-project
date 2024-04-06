@@ -10,6 +10,7 @@ import android.graphics.YuvImage
 import android.media.Image
 import android.os.Handler
 import android.os.Looper
+import android.speech.tts.TextToSpeech
 import android.util.DisplayMetrics
 import android.util.Log
 import android.view.View
@@ -19,17 +20,23 @@ import androidx.camera.core.ExperimentalGetImage
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -38,6 +45,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
@@ -47,7 +55,9 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -58,6 +68,8 @@ import com.example.readr.data.ImageLoader
 import com.example.readr.forceRecomposeWith
 import com.example.readr.noRippleClickable
 import com.example.readr.customcomposables.ChangeReplacedTextSizeSlider
+import com.example.readr.presentation.themeswitcher.ShowBgToggler
+import com.example.readr.presentation.themeswitcher.TextColorSwitcher
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.Text
 import com.google.mlkit.vision.text.TextRecognition
@@ -144,6 +156,8 @@ class TextRecognitionAnalyzer(
         var offsetY = 0f
         var addOffsetX = 0f
         var addOffsetY = 0f
+        var bgColor = 0f
+        var displayBg = false
 
         lateinit var prevBitmap: Bitmap
 
@@ -223,9 +237,6 @@ class TextRecognitionAnalyzer(
                                 return Math.round(px / dm.density)
                             }
 
-                            val offsetYpx = bitmap.height - dm.heightPixels // this is in px
-                            val offsetY = pxToDP(offsetYpx) // MUST CONVERT TO DP
-
                             //System.out.println("OFFSETY: $offsetY")
 
                             var tempText = ""
@@ -238,11 +249,15 @@ class TextRecognitionAnalyzer(
 
                                 var addOffsetX by remember { mutableStateOf(TextRecognitionAnalyzer.addOffsetX) }
                                 var addOffsetY by remember { mutableStateOf(TextRecognitionAnalyzer.addOffsetY) }
+                                var bgColor by remember { mutableStateOf(Companion.bgColor) }
+                                var displayBg by remember { mutableStateOf(Companion.displayBg) }
 
                                 @Composable
                                 fun DisplayText(
                                     addOffsetX: Float, setAddOffsetX: (Float) -> Unit,
-                                    addOffsetY: Float, setAddOffsetY: (Float) -> Unit
+                                    addOffsetY: Float, setAddOffsetY: (Float) -> Unit,
+                                    bgColor: Float, setBgColor: (Float)->Unit,
+                                    displayBg: Boolean, toggleDisplayBg: ()->Unit,
                                 ) {
 
                                     fun pxToDP(px: Double): Int {
@@ -267,7 +282,9 @@ class TextRecognitionAnalyzer(
                                     }
 
                                     // get all the items and show
-                                    Box(modifier = Modifier.wrapContentSize().offset(addOffsetX.dp, (-addOffsetY).dp)) {
+                                    Box(modifier = Modifier
+                                        .wrapContentSize()
+                                        .offset(addOffsetX.dp, (-addOffsetY).dp)) {
                                         Box(
                                             modifier = Modifier
                                                 .fillMaxSize()
@@ -276,7 +293,13 @@ class TextRecognitionAnalyzer(
                                             for (textBlock in visionText.textBlocks) {
                                                 System.out.println("REDRAWING TEXTBLOCKS")
                                                 Button(
-                                                    {},
+                                                    {
+                                                        try {
+                                                            MainActivity.textToSpeech.speak(textBlock.text, TextToSpeech.QUEUE_FLUSH, null, "tts1")
+                                                        } catch (e:Exception) {
+                                                            Toast.makeText(MainActivity.context, "Error reading text.", Toast.LENGTH_SHORT).show()
+                                                        }
+                                                    },
                                                     modifier = Modifier
                                                         .offset(
                                                             //(pxToDP(textBlock.boundingBox!!.left * scale) + addOffsetX).dp,
@@ -284,23 +307,32 @@ class TextRecognitionAnalyzer(
                                                             (pxToDP(textBlock.boundingBox!!.left * scale)).dp,
                                                             (pxToDP(textBlock.boundingBox!!.top * scale) - offsetY).dp
                                                         )
-                                                        .padding(0.dp),
+                                                        .padding(0.dp)
+                                                    ,
                                                     shape = RectangleShape,
                                                     contentPadding = PaddingValues(0.dp),
                                                     colors = ButtonDefaults.buttonColors(
-                                                        containerColor = MaterialTheme.colorScheme.background
+                                                        containerColor =
+                                                            if (displayBg) Color(1-bgColor, 1-bgColor, 1-bgColor)
+                                                            else Color.Transparent
+
                                                     ),
                                                 ) {
+                                                    System.out.println("bgcolor: $bgColor AND COLOR: ${Color(bgColor, bgColor, bgColor)}")
                                                     Text(
-                                                        textBlock.text,
-                                                        modifier = Modifier.padding(0.dp)
+                                                        buildAnnotatedString {
+                                                            with (SpanStyle(color = Color(bgColor, bgColor, bgColor),)) {
+                                                                append(textBlock.text)
+                                                            }
+                                                        },
+                                                        modifier = Modifier
+                                                            .padding(0.dp)
                                                             .forceRecomposeWith(MaterialTheme.colorScheme.background),
                                                         style = TextStyle(
-                                                            color = if (MainActivity.isDarkTheme) Color.White
-                                                            else Color.Black,
                                                             fontSize = fontSize.sp,
                                                             fontFamily = Variables.overlayFontFamily
-                                                        )
+                                                        ),
+                                                        color = Color(bgColor, bgColor, bgColor),
                                                     )
                                                 }
                                             }
@@ -314,10 +346,37 @@ class TextRecognitionAnalyzer(
                                         ,
                                         contentAlignment = Alignment.TopCenter
                                     ) {
-                                        ChangeReplacedTextSizeSlider(fontSize) {
-                                            fontSize = it
-                                            Variables.overlayTextSize = it
+                                        Column(modifier = Modifier.wrapContentHeight(),) {
+                                            ChangeReplacedTextSizeSlider(fontSize) {
+                                                fontSize = it
+                                                Variables.overlayTextSize = it
+                                            }
+
+
+                                            Row(modifier = Modifier.fillMaxWidth().wrapContentHeight().padding(16.dp),
+                                                horizontalArrangement = Arrangement.SpaceBetween) {
+
+                                                Box(
+                                                    modifier = Modifier.wrapContentSize()
+                                                ) {
+                                                    TextColorSwitcher(Math.round(bgColor) == 0) {
+                                                        setBgColor(1 - bgColor)
+                                                    }
+                                                }
+
+                                                Box(
+                                                    modifier = Modifier.wrapContentSize()
+                                                ) {
+                                                    ShowBgToggler(displayBg, oppColor=bgColor) {
+                                                        toggleDisplayBg()
+                                                    }
+                                                }
+
+                                            }
+
+
                                         }
+
                                     }
 
 
@@ -369,7 +428,9 @@ class TextRecognitionAnalyzer(
                                     // horizontal adjustment slider - addOffsetX
                                     Box(
                                         contentAlignment = Alignment.BottomCenter,
-                                        modifier = Modifier.fillMaxSize().padding(bottom=80.dp)//.padding(paddingValues)
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .padding(bottom = 80.dp)//.padding(paddingValues)
                                         ,
                                         //.padding(it)
                                     ) {
@@ -396,9 +457,13 @@ class TextRecognitionAnalyzer(
 
                                 DisplayText(
                                     addOffsetX,
-                                    { TextRecognitionAnalyzer.addOffsetX = it ; addOffsetX = it ; recompose() },
+                                    { TextRecognitionAnalyzer.addOffsetX = it ; addOffsetX = it ; },
                                     addOffsetY,
-                                    { TextRecognitionAnalyzer.addOffsetY = it ; addOffsetY = it ; recompose() })
+                                    { TextRecognitionAnalyzer.addOffsetY = it ; addOffsetY = it ; },
+                                    bgColor,
+                                    { TextRecognitionAnalyzer.bgColor = it ; bgColor = it },
+                                    displayBg,
+                                    { TextRecognitionAnalyzer.displayBg = !displayBg ; displayBg = !displayBg })
 
 
 
@@ -544,7 +609,15 @@ class TextRecognitionAnalyzer(
                                 }
 
                                 // get all the items and save
-                                Box(modifier = Modifier.fillMaxSize().padding(it).noRippleClickable { MainActivity.window.decorView.apply { systemUiVisibility = View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_FULLSCREEN } ; System.out.println("HIDING NAVBAR")}
+                                Box(modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(it)
+                                    .noRippleClickable {
+                                        MainActivity.window.decorView.apply {
+                                            systemUiVisibility =
+                                                View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_FULLSCREEN
+                                        }; System.out.println("HIDING NAVBAR")
+                                    }
                                 ) {
 
                                     for (textBlock in visionText.textBlocks) {
@@ -555,32 +628,43 @@ class TextRecognitionAnalyzer(
 
                                         if (pxToDP(textBlock.boundingBox!!.top*scale) > offsetY + addOffsetY) {
 
-                                            Button(
+                                            TextButton(
                                                 {
-                                                    // SHOW POPUP OF TEXT
+                                                    try {
+                                                        MainActivity.textToSpeech.speak(textBlock.text, TextToSpeech.QUEUE_FLUSH, null, "tts1")
+                                                    } catch (e:Exception) {
+                                                        Toast.makeText(MainActivity.context, "Error reading text.", Toast.LENGTH_SHORT).show()
+                                                    }
+                                                // SHOW POPUP OF TEXT
                                                 },
                                                 modifier = Modifier
                                                     .offset(
-                                                        (pxToDP(textBlock.boundingBox!!.left*scale) + addOffsetX).dp,
-                                                        (pxToDP(textBlock.boundingBox!!.top*scale) - (offsetY + addOffsetY)).dp
+                                                        (pxToDP(textBlock.boundingBox!!.left * scale) + addOffsetX).dp,
+                                                        (pxToDP(textBlock.boundingBox!!.top * scale) - (offsetY + addOffsetY)).dp
                                                     )
 
                                                     .padding(0.dp),
                                                 shape = RectangleShape,
                                                 contentPadding = PaddingValues(0.dp),
                                                 colors = ButtonDefaults.buttonColors(
-                                                    containerColor = MaterialTheme.colorScheme.background
+                                                    containerColor =
+                                                    if (displayBg) Color(1-bgColor, 1-bgColor, 1-bgColor)
+                                                    else Color.Transparent
+
                                                 ),
                                             ) {
-                                                ComposeText(
+                                                //System.out.println("bgcolor: $bgColor AND COLOR: ${Color(bgColor, bgColor, bgColor)}")
+
+                                                Text(
                                                     textBlock.text,
-                                                    modifier = Modifier.padding(0.dp).forceRecomposeWith(MaterialTheme.colorScheme.background),
+                                                    modifier = Modifier
+                                                        .padding(0.dp)
+                                                        .forceRecomposeWith(MaterialTheme.colorScheme.background),
                                                     style = TextStyle(
-                                                        color = if (MainActivity.isDarkTheme) Color.White
-                                                        else Color.Black,
                                                         fontSize = fontSize.sp,
                                                         fontFamily = Variables.overlayFontFamily
-                                                    )
+                                                    ),
+                                                    color = Color(bgColor, bgColor, bgColor),
                                                 )
                                             }
 
@@ -594,12 +678,56 @@ class TextRecognitionAnalyzer(
                                 }
 
                                 Box(
-                                    modifier = Modifier.fillMaxSize().padding(it),
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(it),
                                     contentAlignment = Alignment.TopCenter
                                 ) {
-                                    ChangeReplacedTextSizeSlider(fontSize) {
-                                        fontSize = it
-                                        Variables.overlayTextSize = it
+                                    Column(modifier = Modifier.wrapContentHeight(),) {
+                                        ChangeReplacedTextSizeSlider(fontSize) {
+                                            fontSize = it
+                                            Variables.overlayTextSize = it
+                                        }
+
+
+                                        /*Box(
+                                            modifier = Modifier.wrapContentSize(),
+                                            //.background(Color.Green)
+                                        ) {
+                                            Slider(
+                                                value = bgColor,
+                                                onValueChange = {
+                                                    bgColor = it
+                                                },
+                                                //valueRange = -400f..400f,
+                                                //steps = 199,
+                                                valueRange = 0f..1f,
+                                                steps = 99
+                                            )
+                                        }*/
+
+                                        Row(modifier = Modifier.fillMaxWidth().wrapContentHeight().padding(16.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween) {
+
+                                            Box(
+                                                modifier = Modifier.wrapContentSize()
+                                            ) {
+                                                TextColorSwitcher(Math.round(bgColor) == 0) {
+                                                    bgColor = (1 - bgColor)
+                                                }
+                                            }
+
+                                            Box(
+                                                modifier = Modifier.wrapContentSize()
+                                            ) {
+                                                ShowBgToggler(displayBg, oppColor=bgColor) {
+                                                    displayBg = !displayBg
+                                                }
+                                            }
+
+                                        }
+
+
                                     }
                                 }
 
@@ -607,7 +735,9 @@ class TextRecognitionAnalyzer(
                                 // vertical adjustment slider - addOffsetY
                                 Box(
                                     contentAlignment = Alignment.CenterEnd,
-                                    modifier = Modifier.fillMaxSize().padding(it),
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(it),
                                 ) {
                                     Box(
                                         modifier = Modifier.wrapContentSize(),
@@ -645,31 +775,34 @@ class TextRecognitionAnalyzer(
                                     }
 
 
-
-                                    // horizontal adjustment slider - addOffsetX
-                                    Box(
-                                        contentAlignment = Alignment.BottomCenter,
-                                        modifier = Modifier.fillMaxSize().padding(it),
-                                    ) {
-                                        val w = (pxToDP(dm.widthPixels) - 32).toFloat()
-                                        Box(
-                                            modifier = Modifier.wrapContentSize(),
-                                            //.background(Color.Green)
-                                        ) {
-                                            Slider(
-                                                value = addOffsetX,
-                                                onValueChange = {
-                                                    addOffsetX = it
-                                                },
-                                                //valueRange = -400f..400f,
-                                                //steps = 199,
-                                                valueRange = -(w / 2)..(w / 2),
-                                                steps = 249
-                                            )
-                                        }
-                                    }
-
                                 }
+
+
+                                // horizontal adjustment slider - addOffsetX
+                                Box(
+                                    contentAlignment = Alignment.BottomCenter,
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(it),
+                                ) {
+                                    val w = (pxToDP(dm.widthPixels) - 32).toFloat()
+                                    Box(
+                                        modifier = Modifier.wrapContentSize(),
+                                        //.background(Color.Green)
+                                    ) {
+                                        Slider(
+                                            value = addOffsetX,
+                                            onValueChange = {
+                                                addOffsetX = it
+                                            },
+                                            //valueRange = -400f..400f,
+                                            //steps = 199,
+                                            valueRange = -(w / 2)..(w / 2),
+                                            steps = 249
+                                        )
+                                    }
+                                }
+
 
 
                             }

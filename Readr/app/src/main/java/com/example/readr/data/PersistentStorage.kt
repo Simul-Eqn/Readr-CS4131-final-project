@@ -25,7 +25,7 @@ class PersistentStorage: ContentProvider() {
 
         const val DATABASE_NAME = "First Time"
         const val TABLE_NAME = "FirstTime"
-        const val DATABASE_VERSION = 15 // --------------------------------------------- CHANGE THIS
+        const val DATABASE_VERSION = 18 // --------------------------------------------- CHANGE THIS
         const val CREATE_DB_TABLE = (" CREATE TABLE "+ TABLE_NAME
                 + " (id INTEGER PRIMARY KEY AUTOINCREMENT, rdm INTEGER NOT NULL);")
 
